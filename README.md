@@ -10,6 +10,8 @@ Python package under `torch-ext/szl_formulas/`. Formula composer + canonical for
 
 ## What this is NOT
 
+- Hub `model.joblib` is **QUARANTINED** executable serialization. Do not `joblib.load` it. GitHub source is the approved path.
+
 - Not trained weights, not a LoRA, not GGUF
 - Not a CUDA/Triton speedup claim (no MEASURED benches in this repo)
 - Not the TypeScript product `ouroboros` and not `lutar-lean`
