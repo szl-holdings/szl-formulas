@@ -243,3 +243,18 @@ def selfcheck() -> Dict[str, Any]:
         "lambda_status": LAMBDA_STATUS,
         "lambda_label": LAMBDA_LABEL,
     }
+
+# Attributed formula/quant atlas. This does not alter locked-proof membership.
+from .atlas import (  # noqa: E402
+    atlas_summary,
+    list_attributed_formulas,
+    load_formula_atlas,
+    quant_domains,
+)
+
+__all__.extend([
+    "load_formula_atlas",
+    "atlas_summary",
+    "quant_domains",
+    "list_attributed_formulas",
+])
