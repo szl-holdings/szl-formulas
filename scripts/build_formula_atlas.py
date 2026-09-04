@@ -27,6 +27,7 @@ SOURCE = {
     "git_blob_sha": "600654f89cb062320acae4284cb5220ff881eb3c",
     "state": "ARCHIVED_ATTRIBUTED_SOURCE",
 }
+SOURCE_SHA256 = "c0b6dfee3233097307c518a57c076e5ba3ea9013f34ab454bef92aeddf0f3634"
 ALLOWED_CLASSES = {
     "SYMBOLIC",
     "DIMENSIONAL",
@@ -75,6 +76,13 @@ def canonical_bytes(value: Any) -> bytes:
     ).encode("utf-8")
 
 
+def git_blob_sha(raw: bytes) -> str:
+    """Return Git's exact object identity for one blob."""
+
+    header = f"blob {len(raw)}\0".encode("ascii")
+    return hashlib.sha1(header + raw, usedforsecurity=False).hexdigest()
+
+
 def admission_for(record_class: str) -> str:
     if record_class == "CONJECTURE":
         return "OPEN_NOT_EXECUTION_AUTHORITY"
@@ -85,6 +93,12 @@ def admission_for(record_class: str) -> str:
 
 def build(source_path: Path) -> dict[str, Any]:
     raw = source_path.read_bytes()
+    observed_sha256 = hashlib.sha256(raw).hexdigest()
+    if observed_sha256 != SOURCE_SHA256:
+        raise ValueError("vendored formula corpus SHA-256 drift")
+    observed_git_blob_sha = git_blob_sha(raw)
+    if observed_git_blob_sha != SOURCE["git_blob_sha"]:
+        raise ValueError("vendored formula corpus Git blob identity drift")
     source = json.loads(raw)
     formulas = source.get("formulas")
     if not isinstance(formulas, list) or len(formulas) != 30:
@@ -142,7 +156,7 @@ def build(source_path: Path) -> dict[str, Any]:
         "state": "ATTRIBUTED_REFERENCE_PLUS_EXECUTABLE_KERNEL",
         "source": {
             **SOURCE,
-            "sha256": hashlib.sha256(raw).hexdigest(),
+            "sha256": observed_sha256,
         },
         "authority": {
             "executable_registry_repository": "szl-holdings/szl-formulas",
