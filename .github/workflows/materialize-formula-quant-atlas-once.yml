@@ -1,0 +1,403 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Materialize formula quant atlas once
+
+on:
+  push:
+    branches:
+      - feat/formula-quant-atlas-v1-20260904
+    paths:
+      - .github/workflows/materialize-formula-quant-atlas-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/formula-quant-atlas-v1-20260904
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.13"
+
+      - name: Materialize the attributed all-formula and quant atlas
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p atlas torch-ext/szl_formulas build/torch-universal/szl_formulas tests scripts
+
+          python - <<'PY'
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+
+          url = (
+              "https://raw.githubusercontent.com/szl-holdings/szl-formula-ledger/"
+              "ceaef540eba6c5acf85091faf4a20cd9aef480f9/formulas/corpus.json"
+          )
+          request = Request(url, headers={"User-Agent": "szl-formulas-atlas/1.0"})
+          with urlopen(request, timeout=30) as response:
+              payload = response.read()
+          if not payload.endswith(b"\n"):
+              payload += b"\n"
+          Path("atlas/source-formula-ledger-corpus.json").write_bytes(payload)
+          PY
+
+          cat > scripts/build_formula_atlas.py <<'PY'
+          #!/usr/bin/env python3
+          """Build the deterministic SZL formula/quant atlas from attributed sources.
+
+          The atlas preserves each source record's original class and reported status.
+          It never promotes a record into the locked-proven set and never guesses the
+          unknown mapping between the F-number corpus and the 21 executable functions.
+          """
+          from __future__ import annotations
+
+          import argparse
+          import hashlib
+          import json
+          import sys
+          from collections import Counter
+          from pathlib import Path
+          from typing import Any
+
+          ROOT = Path(__file__).resolve().parents[1]
+          sys.path.insert(0, str(ROOT / "torch-ext"))
+
+          import szl_formulas as executable  # noqa: E402
+
+          SOURCE = {
+              "repository": "szl-holdings/szl-formula-ledger",
+              "revision": "ceaef540eba6c5acf85091faf4a20cd9aef480f9",
+              "path": "formulas/corpus.json",
+              "git_blob_sha": "600654f89cb062320acae4284cb5220ff881eb3c",
+              "state": "ARCHIVED_ATTRIBUTED_SOURCE",
+          }
+          ALLOWED_CLASSES = {
+              "SYMBOLIC",
+              "DIMENSIONAL",
+              "EMPIRICAL",
+              "DEFINITIONAL",
+              "CONJECTURE",
+          }
+          QUANT_DOMAIN_BY_ID = {
+              "A2-homogeneity": "trust_aggregation",
+              "A4-bounded-amgm": "trust_aggregation",
+              "lambda-score-dimensionless": "trust_aggregation",
+              "TH_L1-lambda-uniqueness": "trust_aggregation",
+              "axis-schema-13": "trust_aggregation",
+              "F18-reed-solomon-singleton": "coding_error_control",
+              "TH_V18_03-kraft": "coding_error_control",
+              "shor-913-distance": "coding_error_control",
+              "F1-euler-khipu-chi": "topology_geometry",
+              "TH_V18_04-egyptian-horus": "algebra_number_theory",
+              "quadratic-completion": "algebra_number_theory",
+              "cauchy-schwarz-2d": "algebra_number_theory",
+              "madhava-leibniz-atan": "algebra_number_theory",
+              "F19-bekenstein-additive": "energy_entropy_physics",
+              "bekenstein-dimensional": "energy_entropy_physics",
+              "landauer-energy": "energy_entropy_physics",
+              "K13-bekenstein-fire": "energy_entropy_physics",
+              "F12-kuramoto-additive": "dynamics_consensus",
+              "byzantine-n3f1": "dynamics_consensus",
+              "K06-rho-closure": "dynamics_consensus",
+              "conjecture-2-khipu-safety": "dynamics_consensus",
+              "conjecture-3-khipu-liveness": "dynamics_consensus",
+              "fisher-rao-identity": "information_geometry",
+              "pinsker-2pt": "information_geometry",
+              "K01-receipt-build-latency": "governance_receipts",
+              "k-verify-accuracy": "governance_receipts",
+              "F0001-system-tuple": "governance_receipts",
+              "F0003-receipt-edge": "governance_receipts",
+              "dsse-envelope-struct": "governance_receipts",
+              "code-of-reality-lineage": "narrative_lineage",
+          }
+
+
+          def canonical_bytes(value: Any) -> bytes:
+              return (
+                  json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                  + "\n"
+              ).encode("utf-8")
+
+
+          def admission_for(record_class: str) -> str:
+              if record_class == "CONJECTURE":
+                  return "OPEN_NOT_EXECUTION_AUTHORITY"
+              if record_class == "EMPIRICAL":
+                  return "SOURCE_RECEIPT_REQUIRED_FOR_CURRENT_CLAIM"
+              return "REFERENCE_ONLY_UNLESS_EXECUTABLE_MATCH_IS_EXPLICIT"
+
+
+          def build(source_path: Path) -> dict[str, Any]:
+              raw = source_path.read_bytes()
+              source = json.loads(raw)
+              formulas = source.get("formulas")
+              if not isinstance(formulas, list) or len(formulas) != 30:
+                  raise ValueError("attributed formula corpus must contain exactly 30 records")
+
+              seen: set[str] = set()
+              records: list[dict[str, Any]] = []
+              for row in formulas:
+                  if not isinstance(row, dict):
+                      raise TypeError("each formula record must be an object")
+                  missing = {"id", "source", "statement", "class", "reported_status"} - set(row)
+                  if missing:
+                      raise ValueError(f"formula record missing fields: {sorted(missing)}")
+                  formula_id = str(row["id"])
+                  if formula_id in seen:
+                      raise ValueError(f"duplicate formula id: {formula_id}")
+                  seen.add(formula_id)
+                  record_class = str(row["class"])
+                  if record_class not in ALLOWED_CLASSES:
+                      raise ValueError(f"unsupported formula class: {record_class}")
+                  if formula_id not in QUANT_DOMAIN_BY_ID:
+                      raise ValueError(f"formula lacks an explicit quant domain: {formula_id}")
+                  records.append(
+                      {
+                          "id": formula_id,
+                          "source": str(row["source"]),
+                          "statement": str(row["statement"]),
+                          "class": record_class,
+                          "reported_status": str(row["reported_status"]),
+                          "quant_domain": QUANT_DOMAIN_BY_ID[formula_id],
+                          "admission": admission_for(record_class),
+                          "locked_proven_membership": (
+                              "UNKNOWN_NOT_INFERRED_FROM_REPORTED_STATUS"
+                          ),
+                      }
+                  )
+
+              executable_rows = [
+                  {
+                      "name": name,
+                      "proof_status": executable.PROOF_STATUS[name],
+                  }
+                  for name in sorted(executable.REGISTRY)
+              ]
+              if len(executable_rows) != 21:
+                  raise ValueError("executable registry must remain exactly 21 functions")
+              locked = sorted(executable.LOCKED_PROVEN_FORMULA_IDS)
+              if locked != ["F1", "F11", "F12", "F18", "F19", "F22", "F4", "F7"]:
+                  raise ValueError("locked-proven formula set drifted")
+
+              class_counts = Counter(row["class"] for row in records)
+              domain_counts = Counter(row["quant_domain"] for row in records)
+              core: dict[str, Any] = {
+                  "schema": "szl.formula-quant-atlas/v1",
+                  "state": "ATTRIBUTED_REFERENCE_PLUS_EXECUTABLE_KERNEL",
+                  "source": {
+                      **SOURCE,
+                      "sha256": hashlib.sha256(raw).hexdigest(),
+                  },
+                  "authority": {
+                      "executable_registry_repository": "szl-holdings/szl-formulas",
+                      "executable_registry_count": 21,
+                      "locked_proven_count": 8,
+                      "locked_proven_ids": locked,
+                      "lambda_status": "CONJECTURE_1_OPEN_ADVISORY_ONLY",
+                      "f_number_to_executable_registry_mapping": "UNKNOWN_NOT_INFERRED",
+                      "rule": (
+                          "Per-obligation PROOF_STATUS, corpus reported_status, and locked-proven "
+                          "membership are distinct dimensions. No status string promotes a formula."
+                      ),
+                  },
+                  "summary": {
+                      "attributed_formula_count": len(records),
+                      "executable_formula_count": len(executable_rows),
+                      "class_counts": dict(sorted(class_counts.items())),
+                      "quant_domain_counts": dict(sorted(domain_counts.items())),
+                  },
+                  "quant_domains": [
+                      {
+                          "id": domain,
+                          "formula_count": domain_counts[domain],
+                          "authority": "REFERENCE_AND_CONSTRAINT_INPUT_ONLY",
+                      }
+                      for domain in sorted(domain_counts)
+                  ],
+                  "executable_formulas": executable_rows,
+                  "attributed_formulas": sorted(records, key=lambda row: row["id"]),
+              }
+              core["payload_sha256"] = hashlib.sha256(canonical_bytes(core)).hexdigest()
+              return core
+
+
+          def main() -> None:
+              parser = argparse.ArgumentParser()
+              parser.add_argument("--source", type=Path, required=True)
+              parser.add_argument("--output", type=Path, required=True)
+              args = parser.parse_args()
+              result = build(args.source)
+              args.output.parent.mkdir(parents=True, exist_ok=True)
+              args.output.write_bytes(
+                  json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
+                  + b"\n"
+              )
+              print(json.dumps(result["summary"], sort_keys=True))
+
+
+          if __name__ == "__main__":
+              main()
+          PY
+
+          cat > torch-ext/szl_formulas/atlas.py <<'PY'
+          """Read-only access to the attributed SZL formula and quant atlas."""
+          from __future__ import annotations
+
+          import json
+          from importlib.resources import files
+          from typing import Any
+
+
+          def load_formula_atlas() -> dict[str, Any]:
+              resource = files(__package__).joinpath("formula_atlas.v1.json")
+              value = json.loads(resource.read_text(encoding="utf-8"))
+              if value.get("schema") != "szl.formula-quant-atlas/v1":
+                  raise ValueError("unsupported formula atlas schema")
+              return value
+
+
+          def atlas_summary() -> dict[str, Any]:
+              return dict(load_formula_atlas()["summary"])
+
+
+          def quant_domains() -> list[dict[str, Any]]:
+              return [dict(row) for row in load_formula_atlas()["quant_domains"]]
+
+
+          def list_attributed_formulas() -> list[dict[str, Any]]:
+              return [dict(row) for row in load_formula_atlas()["attributed_formulas"]]
+          PY
+          cp torch-ext/szl_formulas/atlas.py build/torch-universal/szl_formulas/atlas.py
+
+          PYTHONPATH=./torch-ext python scripts/build_formula_atlas.py \
+            --source atlas/source-formula-ledger-corpus.json \
+            --output atlas/formula-atlas.v1.json
+          cp atlas/formula-atlas.v1.json torch-ext/szl_formulas/formula_atlas.v1.json
+          cp atlas/formula-atlas.v1.json build/torch-universal/szl_formulas/formula_atlas.v1.json
+
+          python - <<'PY'
+          from pathlib import Path
+
+          suffix = '''\n\n# Attributed formula/quant atlas. This does not alter locked-proof membership.\nfrom .atlas import (  # noqa: E402\n    atlas_summary,\n    list_attributed_formulas,\n    load_formula_atlas,\n    quant_domains,\n)\n\n__all__.extend([\n    "load_formula_atlas",\n    "atlas_summary",\n    "quant_domains",\n    "list_attributed_formulas",\n])\n'''
+          for filename in (
+              "torch-ext/szl_formulas/__init__.py",
+              "build/torch-universal/szl_formulas/__init__.py",
+          ):
+              path = Path(filename)
+              text = path.read_text(encoding="utf-8")
+              marker = "# Attributed formula/quant atlas."
+              if marker not in text:
+                  path.write_text(text.rstrip() + suffix, encoding="utf-8", newline="\n")
+          PY
+
+          cat > tests/test_formula_quant_atlas.py <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          import szl_formulas as formulas
+
+          ROOT = Path(__file__).resolve().parents[1]
+          SOURCE = ROOT / "atlas" / "source-formula-ledger-corpus.json"
+          ATLAS = ROOT / "atlas" / "formula-atlas.v1.json"
+
+
+          def test_atlas_rebuild_is_byte_deterministic() -> None:
+              with tempfile.TemporaryDirectory() as temporary:
+                  output = Path(temporary) / "atlas.json"
+                  subprocess.run(
+                      [
+                          sys.executable,
+                          str(ROOT / "scripts" / "build_formula_atlas.py"),
+                          "--source",
+                          str(SOURCE),
+                          "--output",
+                          str(output),
+                      ],
+                      check=True,
+                  )
+                  assert output.read_bytes() == ATLAS.read_bytes()
+
+
+          def test_attributed_source_and_counts_are_exact() -> None:
+              atlas = formulas.load_formula_atlas()
+              assert atlas["source"]["revision"] == "ceaef540eba6c5acf85091faf4a20cd9aef480f9"
+              assert atlas["source"]["git_blob_sha"] == "600654f89cb062320acae4284cb5220ff881eb3c"
+              assert atlas["source"]["sha256"] == hashlib.sha256(SOURCE.read_bytes()).hexdigest()
+              assert atlas["summary"]["attributed_formula_count"] == 30
+              assert atlas["summary"]["executable_formula_count"] == 21
+              assert sum(atlas["summary"]["class_counts"].values()) == 30
+              assert sum(atlas["summary"]["quant_domain_counts"].values()) == 30
+
+
+          def test_locked_eight_remains_separate_from_all_status_strings() -> None:
+              atlas = formulas.load_formula_atlas()
+              authority = atlas["authority"]
+              assert authority["locked_proven_count"] == 8
+              assert set(authority["locked_proven_ids"]) == {
+                  "F1", "F4", "F7", "F11", "F12", "F18", "F19", "F22"
+              }
+              assert authority["f_number_to_executable_registry_mapping"] == "UNKNOWN_NOT_INFERRED"
+              for row in atlas["attributed_formulas"]:
+                  assert row["locked_proven_membership"] == "UNKNOWN_NOT_INFERRED_FROM_REPORTED_STATUS"
+                  if row["class"] == "CONJECTURE":
+                      assert row["admission"] == "OPEN_NOT_EXECUTION_AUTHORITY"
+
+
+          def test_every_formula_has_one_explicit_quant_domain() -> None:
+              atlas = formulas.load_formula_atlas()
+              ids = [row["id"] for row in atlas["attributed_formulas"]]
+              assert len(ids) == len(set(ids)) == 30
+              assert all(row["quant_domain"] for row in atlas["attributed_formulas"])
+              assert len(formulas.quant_domains()) == 9
+              assert formulas.atlas_summary() == atlas["summary"]
+              assert formulas.list_attributed_formulas() == atlas["attributed_formulas"]
+
+
+          def test_payload_digest_covers_the_canonical_core() -> None:
+              atlas = json.loads(ATLAS.read_text(encoding="utf-8"))
+              expected = atlas.pop("payload_sha256")
+              core = (
+                  json.dumps(atlas, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                  + "\n"
+              ).encode("utf-8")
+              assert hashlib.sha256(core).hexdigest() == expected
+          PY
+
+          python -m py_compile scripts/build_formula_atlas.py \
+            torch-ext/szl_formulas/atlas.py \
+            build/torch-universal/szl_formulas/atlas.py \
+            tests/test_formula_quant_atlas.py
+          PYTHONPATH=./torch-ext python -m pytest tests -q --tb=short
+          git diff --check
+
+      - name: Commit the durable atlas implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Lutar, Stephen P."
+          git config user.email "stephenlutar2@gmail.com"
+          git add atlas scripts/build_formula_atlas.py \
+            torch-ext/szl_formulas build/torch-universal/szl_formulas \
+            tests/test_formula_quant_atlas.py
+          git diff --cached --quiet && { echo "no atlas changes"; exit 1; }
+          git commit -s -m "feat(formulas): materialize attributed quant atlas"
+          git push origin HEAD:feat/formula-quant-atlas-v1-20260904
