@@ -1,0 +1,13 @@
+{
+  "title": "szl-formulas — 21 canonical formulas, locked-proven exactly 8 (Kernel Hub package)",
+  "upload_type": "software",
+  "description": "Canonical GitHub source for the szl-formulas Kernel Hub package: 21 canonical formulas with proof-status tracking, locked-proven exactly 8, Lean 4 lineage, lambda-aggregate. Hub is the publish mirror. Doctrine v11.",
+  "creators": [{"name": "Lutar, Stephen P., Jr."}],
+  "license": {"id": "Apache-2.0"},
+  "keywords": ["governed-ai", "formulas", "lean4", "proof-status", "szl-holdings"],
+  "related_identifiers": [
+    {"identifier": "10.5281/zenodo.19944926", "relation": "isSupplementTo", "scheme": "doi"},
+    {"identifier": "https://huggingface.co/SZLHOLDINGS/szl-formulas", "relation": "isDocumentedBy", "scheme": "url"}
+  ],
+  "notes": "NEW work per the szl-papers deposit policy. Mint via GitHub release after enabling this repo in the owner's Zenodo account."
+}
