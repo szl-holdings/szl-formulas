@@ -1,0 +1,9 @@
+szl-lambda-gate@d3443b0539ad9fdbd407a0b0bf0454b416102089:spec/lambda_v1_vectors.json
+repository: szl-holdings/szl-lambda-gate
+commit: d3443b0539ad9fdbd407a0b0bf0454b416102089
+path: spec/lambda_v1_vectors.json
+git_blob_sha1: e271fd9df5c730efed5c5ed729aec408e3376d1a
+canonical_sha256: 2a3fef3d17ca36142139fa6bd08b7f0e41526c749abc7cfd810b77cc50ab5d1f
+canonical_sha256_over: json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+spec: szl-lambda-gate spec/szl.lambda.v1.json (schema szl.lambda/v1; its vectors.sha256 is the canonical_sha256 above)
+copy: byte copy of the blob at that commit (git show <commit>:<path>); do not edit, re-vendor from a newer merge instead

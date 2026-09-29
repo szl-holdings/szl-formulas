@@ -46,35 +46,118 @@ def _approx(a: float, b: float, eps: float = EPS) -> bool:
     return abs(a - b) <= eps * max(1.0, abs(a), abs(b))
 
 
+# szl.lambda/v1 input contract (szl-holdings/szl-lambda-gate spec/szl.lambda.v1.json;
+# the golden vectors are pinned in tests/fixtures/lambda_v1_vectors.SOURCE). Every
+# violation raises LambdaV1Error(code), a ValueError. Nothing is clamped,
+# renormalised or rounded. Codes are listed in precedence order: each check runs
+# over every element before the next, so the reported code does not depend on
+# axis order. LAMBDA_TAU_INVALID is gate-only and does not apply here.
+LAMBDA_V1_WEIGHT_SUM_TOL: float = 1e-12
+LAMBDA_V1_ERROR_CODES = (
+    "LAMBDA_TYPE_INVALID",
+    "LAMBDA_EMPTY",
+    "LAMBDA_LENGTH_MISMATCH",
+    "LAMBDA_NONFINITE_AXIS",
+    "LAMBDA_AXIS_OUT_OF_RANGE",
+    "LAMBDA_NONFINITE_WEIGHT",
+    "LAMBDA_WEIGHT_NONPOSITIVE",
+    "LAMBDA_WEIGHT_SUM",
+)
+
+
+class LambdaV1Error(ValueError):
+    """An input outside the szl.lambda/v1 contract. ``code`` is one of LAMBDA_V1_ERROR_CODES."""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        self.code = code
+        self.detail = detail
+        super().__init__(f"{code}: {detail}" if detail else code)
+
+
+def _lambda_v1_is_real(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _lambda_v1_is_nonfinite(value) -> bool:
+    # ints are always finite; only floats can be NaN or ±Inf.
+    return isinstance(value, float) and not math.isfinite(value)
+
+
+def _lambda_v1_validate(axes, weights) -> None:
+    for name, seq in (("axes", axes), ("weights", weights)):
+        if not isinstance(seq, (list, tuple)):
+            raise LambdaV1Error(
+                "LAMBDA_TYPE_INVALID", f"{name} must be a list or tuple, got {type(seq).__name__}"
+            )
+    if len(axes) == 0 or len(weights) == 0:
+        raise LambdaV1Error("LAMBDA_EMPTY", f"len(axes)={len(axes)}, len(weights)={len(weights)}")
+    if len(axes) != len(weights):
+        raise LambdaV1Error(
+            "LAMBDA_LENGTH_MISMATCH", f"len(axes)={len(axes)} != len(weights)={len(weights)}"
+        )
+    for name, seq in (("axes", axes), ("weights", weights)):
+        for i, value in enumerate(seq):
+            if not _lambda_v1_is_real(value):
+                raise LambdaV1Error(
+                    "LAMBDA_TYPE_INVALID", f"{name}[{i}] is {type(value).__name__}, not a real number"
+                )
+    for i, x in enumerate(axes):
+        if _lambda_v1_is_nonfinite(x):
+            raise LambdaV1Error("LAMBDA_NONFINITE_AXIS", f"axes[{i}]={x!r}")
+    for i, x in enumerate(axes):
+        if not 0 <= x <= 1:
+            raise LambdaV1Error("LAMBDA_AXIS_OUT_OF_RANGE", f"axes[{i}]={x!r} is outside [0, 1]")
+    for i, w in enumerate(weights):
+        if _lambda_v1_is_nonfinite(w):
+            raise LambdaV1Error("LAMBDA_NONFINITE_WEIGHT", f"weights[{i}]={w!r}")
+    for i, w in enumerate(weights):
+        if not w > 0:
+            raise LambdaV1Error("LAMBDA_WEIGHT_NONPOSITIVE", f"weights[{i}]={w!r} is not > 0")
+    try:
+        total = math.fsum(weights)
+    except OverflowError:
+        raise LambdaV1Error("LAMBDA_WEIGHT_SUM", "sum of weights overflows a float") from None
+    if not abs(total - 1.0) <= LAMBDA_V1_WEIGHT_SUM_TOL:
+        raise LambdaV1Error(
+            "LAMBDA_WEIGHT_SUM",
+            f"fsum(weights)={total!r} is not within {LAMBDA_V1_WEIGHT_SUM_TOL} of 1",
+        )
+
+
 # 1. lambda_aggregate — canonical Λ (weighted geometric mean). A1–A4 PROVEN;
 #    uniqueness CONJECTURE 1 (open).
 def lambda_aggregate(axes: Sequence[float], weights: Sequence[float] | None = None) -> float:
     """Λ_w(x) = ∏ xᵢ^{wᵢ}, Σwᵢ = 1, xᵢ ∈ [0,1] (weighted geometric mean).
 
+    Validated against szl.lambda/v1: ``axes`` (and ``weights``, when given) must
+    be a list or tuple of real numbers (bool is not a number); every xᵢ finite
+    and in [0,1]; every wᵢ finite and > 0; |fsum(w) − 1| ≤ 1e-12; empty is an
+    error. ``weights=None`` means uniform wᵢ = 1/k. A violation raises
+    ``LambdaV1Error`` (a ValueError) whose ``code`` names it. A zero axis gives
+    exactly 0.0 (a veto, not an error). The result is in [0,1].
+
     THEOREM: Lutar invariant (thesis Ch.02); axioms A1 Monotonicity, A2
     IsHomogeneous, A3 Egyptian inspectability, A4 IsBounded.
     PROOF-STATUS: A1–A4 PROVEN in Lean; Λ uniqueness = CONJECTURE 1 (open).
     """
-    xs = [float(x) for x in axes]
-    if not xs:
-        raise ValueError("axes must be non-empty")
-    if any(x < 0.0 for x in xs):
-        raise ValueError("axes must be non-negative (trust scores in [0,1])")
-    k = len(xs)
-    ws = [1.0 / k] * k if weights is None else [float(w) for w in weights]
-    if len(ws) != k:
-        raise ValueError("weights length must match axes length")
-    sw = math.fsum(ws)
-    if not _approx(sw, 1.0):
-        raise ValueError(f"weights must sum to 1 (got {sw})")
-    if any(x == 0.0 for x in xs):
+    if not isinstance(axes, (list, tuple)):
+        raise LambdaV1Error(
+            "LAMBDA_TYPE_INVALID", f"axes must be a list or tuple, got {type(axes).__name__}"
+        )
+    k = len(axes)
+    ws = ([1.0 / k] * k if k else []) if weights is None else weights
+    _lambda_v1_validate(axes, ws)
+    if any(x == 0 for x in axes):
         return 0.0
-    return math.exp(math.fsum(w * math.log(x) for w, x in zip(ws, xs)))
+    return math.exp(math.fsum(float(w) * math.log(float(x)) for x, w in zip(axes, ws)))
 
 
 # 2. lambda_homogeneous — A2 verification.
 def lambda_homogeneous(c: float, x: List[float]) -> bool:
-    """A2 IsHomogeneous: True iff Λ(c·x) == c·Λ(x) within ε. PROOF-STATUS: AXIOM(A2)."""
+    """A2 IsHomogeneous: True iff Λ(c·x) == c·Λ(x) within ε. PROOF-STATUS: AXIOM(A2).
+
+    c·x must stay in the szl.lambda/v1 domain [0,1]; otherwise lambda_aggregate
+    raises LambdaV1Error("LAMBDA_AXIS_OUT_OF_RANGE")."""
     if c < 0.0:
         raise ValueError("c must be >= 0 (positive homogeneity)")
     return _approx(lambda_aggregate([c * xi for xi in x]), c * lambda_aggregate(x))
