@@ -4,6 +4,10 @@ Software kernel for SZL formula composition. **Not a model. No weights.**
 
 This GitHub tree is the source. The Hub package is the publish mirror: [`kernels/SZLHOLDINGS/szl-formulas`](https://huggingface.co/kernels/SZLHOLDINGS/szl-formulas). Card: [`SZLHOLDINGS/szl-formulas`](https://huggingface.co/SZLHOLDINGS/szl-formulas).
 
+The source-owned [runtime publication workflow](docs/hf-runtime-publication.md)
+binds both Hub distributions to an exact tested GitHub revision and verifies
+their published bytes while retaining curated Hub assets.
+
 ## What
 
 Python package under `torch-ext/szl_formulas/`. Formula composer + canonical formula table. Apache-2.0.

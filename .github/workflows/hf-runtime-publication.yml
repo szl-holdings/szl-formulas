@@ -1,0 +1,91 @@
+name: Publish exact formula Python runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_source_revision:
+        description: Exact reviewed main SHA to publish
+        type: string
+        required: true
+      model_parent:
+        description: Observed exact legacy model main revision
+        type: string
+        required: true
+      kernel_parent:
+        description: Observed exact kernel main revision
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: szl-formulas-canonical-hf-runtime
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1
+        with:
+          egress-policy: audit
+      - name: Check out exact workflow source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.13'
+          check-latest: false
+      - name: Admit exact signed and tested main before provider access
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE: ${{ inputs.expected_source_revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$EXPECTED_SOURCE" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA" --jq .commit.verification.verified)" = true
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" > /tmp/source-checks.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          pages = json.loads(Path('/tmp/source-checks.json').read_text())
+          checks = [row for page in pages for row in page['check_runs']]
+          runs = [row for row in checks if row['name'] == 'verify canonical kernel']
+          assert runs, 'canonical CPU contract missing on source SHA'
+          latest = max(runs, key=lambda row: row['id'])
+          assert latest['status'] == 'completed' and latest['conclusion'] == 'success', 'source CPU contract did not pass'
+          PY
+      - name: Verify current package and publication refusal contracts
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pytest==9.1.1
+          PYTHONPATH=./torch-ext python -m pytest tests -q
+          git diff --check
+      - name: Publish fixed slots and verify immutable readback
+        env:
+          HF_TOKEN: ${{ secrets.HF_ORG_TOKEN || secrets.HF_TOKEN }}
+          EXPECTED_SOURCE: ${{ inputs.expected_source_revision }}
+          MODEL_PARENT: ${{ inputs.model_parent }}
+          KERNEL_PARENT: ${{ inputs.kernel_parent }}
+        run: |
+          set -euo pipefail
+          python scripts/publish_hf_runtime.py --apply \
+            --expected-source-revision "$EXPECTED_SOURCE" \
+            --model-parent "$MODEL_PARENT" --kernel-parent "$KERNEL_PARENT"
+      - name: Preserve publication or failure evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: formula-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/hf-runtime-publication.json
+          if-no-files-found: error
+          retention-days: 180
