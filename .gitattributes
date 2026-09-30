@@ -1,0 +1,2 @@
+# Byte-pinned corpus and deterministic atlas hashes must survive Windows checkout.
+*.json text eol=lf
