@@ -39,8 +39,8 @@ TORCH_EXT_FILE = ROOT / "torch-ext" / "szl_formulas" / "_formulas.py"
 BUILD_FILE = ROOT / "build" / "torch-universal" / "szl_formulas" / "_formulas.py"
 
 # The FF-01 merge of szl-lambda-gate and the digest its spec records.
-PINNED_COMMIT = "d3443b0539ad9fdbd407a0b0bf0454b416102089"
-PINNED_CANONICAL_SHA256 = "2a3fef3d17ca36142139fa6bd08b7f0e41526c749abc7cfd810b77cc50ab5d1f"
+PINNED_COMMIT = "6a874e11ab948a47e982be3651b8021ba6b82e19"
+PINNED_CANONICAL_SHA256 = "61bfb0410b9f0eaab0eb9f22f29cb7cb13cfde8c083fe308d895565d6ba9ebd4"
 
 # Every code lambda_aggregate may raise, in the v1 precedence order.
 # LAMBDA_TAU_INVALID is gate-only and szl-formulas has no gate.
@@ -134,7 +134,7 @@ def test_fixture_is_a_byte_copy_of_the_pinned_blob():
 def test_vectors_are_well_formed():
     assert VECTORS_DOC["schema"] == "szl.lambda/v1.vectors"
     ids = [v["id"] for v in VECTORS]
-    assert len(ids) == len(set(ids)) == 50
+    assert len(ids) == len(set(ids)) == 60
     for v in VECTORS:
         expect = v["expect"]
         assert ("error" in expect) != ("value_f64" in expect), v["id"]
