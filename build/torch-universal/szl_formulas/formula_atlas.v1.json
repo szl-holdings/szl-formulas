@@ -17,7 +17,7 @@
       "locked_proven_membership": "UNKNOWN_NOT_INFERRED_FROM_REPORTED_STATUS",
       "quant_domain": "trust_aggregation",
       "reported_status": "PROVEN(A4, Bound.lean)",
-      "source": "canonical-formulas-v1/lambda_bounded; lutar-lean Bound.lean; F19",
+      "source": "canonical-formulas-v1/lambda_bounded; lutar-lean Lutar/Bound.lean (Λ_le_max)",
       "statement": "Geometric mean <= max axis (AM-GM corollary). 2-var: sqrt(a*b) <= (a+b)/2, with slack (sqrt(a)-sqrt(b))^2/2."
     },
     {
@@ -306,6 +306,7 @@
     "executable_registry_repository": "szl-holdings/szl-formulas",
     "f_number_to_executable_registry_mapping": "UNKNOWN_NOT_INFERRED",
     "lambda_status": "CONJECTURE_1_OPEN_ADVISORY_ONLY",
+    "lean_theorem_to_python_function_mapping": "UNVERIFIED",
     "locked_proven_count": 8,
     "locked_proven_ids": [
       "F1",
@@ -317,7 +318,7 @@
       "F4",
       "F7"
     ],
-    "rule": "Per-obligation PROOF_STATUS, corpus reported_status, and locked-proven membership are distinct dimensions. No status string promotes a formula."
+    "rule": "Per-obligation PROOF_STATUS, corpus reported_status, and locked-proven membership are distinct dimensions. No status string promotes a formula, and a Lean citation does not verify a Python implementation."
   },
   "executable_formulas": [
     {
@@ -405,7 +406,7 @@
       "proof_status": "SORRY(TwoWitness)"
     }
   ],
-  "payload_sha256": "d7b08cde24f57a40de5707c4336ae41eae48aff9e91cb210ec3152ae8d3a8024",
+  "payload_sha256": "f5e50909702090075c82020ff941de8610580279c042a531f183fb3a2432e70d",
   "quant_domains": [
     {
       "authority": "REFERENCE_AND_CONSTRAINT_INPUT_ONLY",
@@ -455,12 +456,20 @@
   ],
   "schema": "szl.formula-quant-atlas/v1",
   "source": {
+    "erratum": {
+      "corrected_ids": [
+        "A4-bounded-amgm"
+      ],
+      "git_blob_sha": "d33faf9c29d61c5314dffdcc67f68443ebd13842",
+      "path": "atlas/source-formula-ledger-erratum.v1.json",
+      "sha256": "21cd2887daa8d4d0b57723b8e9819ee2f6a7b825ab7c777b559c5058d13ee594"
+    },
     "git_blob_sha": "600654f89cb062320acae4284cb5220ff881eb3c",
     "path": "formulas/corpus.json",
     "repository": "szl-holdings/szl-formula-ledger",
     "revision": "ceaef540eba6c5acf85091faf4a20cd9aef480f9",
     "sha256": "c0b6dfee3233097307c518a57c076e5ba3ea9013f34ab454bef92aeddf0f3634",
-    "state": "ARCHIVED_ATTRIBUTED_SOURCE"
+    "state": "ARCHIVED_ATTRIBUTED_SOURCE_WITH_LOCAL_ERRATUM"
   },
   "state": "ATTRIBUTED_REFERENCE_PLUS_EXECUTABLE_KERNEL",
   "summary": {

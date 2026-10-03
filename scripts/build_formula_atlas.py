@@ -28,6 +28,14 @@ SOURCE = {
     "state": "ARCHIVED_ATTRIBUTED_SOURCE",
 }
 SOURCE_SHA256 = "c0b6dfee3233097307c518a57c076e5ba3ea9013f34ab454bef92aeddf0f3634"
+ERRATUM_PATH = ROOT / "atlas" / "source-formula-ledger-erratum.v1.json"
+ERRATUM_SHA256 = "21cd2887daa8d4d0b57723b8e9819ee2f6a7b825ab7c777b559c5058d13ee594"
+ERRATUM_GIT_BLOB_SHA = "d33faf9c29d61c5314dffdcc67f68443ebd13842"
+ARCHIVED_A4_SOURCE = "canonical-formulas-v1/lambda_bounded; lutar-lean Bound.lean; F19"
+CORRECTED_A4_SOURCE = (
+    "canonical-formulas-v1/lambda_bounded; "
+    "lutar-lean Lutar/Bound.lean (Λ_le_max)"
+)
 ALLOWED_CLASSES = {
     "SYMBOLIC",
     "DIMENSIONAL",
@@ -104,6 +112,35 @@ def build(source_path: Path) -> dict[str, Any]:
     if not isinstance(formulas, list) or len(formulas) != 30:
         raise ValueError("attributed formula corpus must contain exactly 30 records")
 
+    # The archived corpus is immutable. Apply a separately pinned source erratum
+    # so the generated atlas cannot mistake F19's Nat addition for the A4 bound.
+    erratum_raw = ERRATUM_PATH.read_bytes()
+    if hashlib.sha256(erratum_raw).hexdigest() != ERRATUM_SHA256:
+        raise ValueError("formula corpus erratum SHA-256 drift")
+    if git_blob_sha(erratum_raw) != ERRATUM_GIT_BLOB_SHA:
+        raise ValueError("formula corpus erratum Git blob identity drift")
+    erratum = json.loads(erratum_raw)
+    if erratum.get("schema") != "szl.formula-ledger-erratum/v1":
+        raise ValueError("unsupported formula corpus erratum schema")
+    if erratum.get("archived_source") != {
+        key: SOURCE[key] for key in ("repository", "revision", "path", "git_blob_sha")
+    }:
+        raise ValueError("formula corpus erratum targets a different archive")
+    corrections = erratum.get("corrections")
+    if not isinstance(corrections, list) or len(corrections) != 1:
+        raise ValueError("formula corpus erratum must contain one A4 correction")
+    correction = corrections[0]
+    if not isinstance(correction, dict) or any(
+        correction.get(key) != value
+        for key, value in {
+            "id": "A4-bounded-amgm",
+            "field": "source",
+            "archived_value": ARCHIVED_A4_SOURCE,
+            "corrected_value": CORRECTED_A4_SOURCE,
+        }.items()
+    ):
+        raise ValueError("formula corpus erratum must correct the exact A4 citation")
+
     seen: set[str] = set()
     records: list[dict[str, Any]] = []
     for row in formulas:
@@ -121,10 +158,15 @@ def build(source_path: Path) -> dict[str, Any]:
             raise ValueError(f"unsupported formula class: {record_class}")
         if formula_id not in QUANT_DOMAIN_BY_ID:
             raise ValueError(f"formula lacks an explicit quant domain: {formula_id}")
+        record_source = str(row["source"])
+        if formula_id == correction["id"]:
+            if record_source != correction["archived_value"]:
+                raise ValueError("archived A4 citation differs from the pinned erratum")
+            record_source = correction["corrected_value"]
         records.append(
             {
                 "id": formula_id,
-                "source": str(row["source"]),
+                "source": record_source,
                 "statement": str(row["statement"]),
                 "class": record_class,
                 "reported_status": str(row["reported_status"]),
@@ -157,6 +199,13 @@ def build(source_path: Path) -> dict[str, Any]:
         "source": {
             **SOURCE,
             "sha256": observed_sha256,
+            "state": "ARCHIVED_ATTRIBUTED_SOURCE_WITH_LOCAL_ERRATUM",
+            "erratum": {
+                "path": "atlas/source-formula-ledger-erratum.v1.json",
+                "sha256": ERRATUM_SHA256,
+                "git_blob_sha": ERRATUM_GIT_BLOB_SHA,
+                "corrected_ids": [correction["id"]],
+            },
         },
         "authority": {
             "executable_registry_repository": "szl-holdings/szl-formulas",
@@ -165,9 +214,11 @@ def build(source_path: Path) -> dict[str, Any]:
             "locked_proven_ids": locked,
             "lambda_status": "CONJECTURE_1_OPEN_ADVISORY_ONLY",
             "f_number_to_executable_registry_mapping": "UNKNOWN_NOT_INFERRED",
+            "lean_theorem_to_python_function_mapping": "UNVERIFIED",
             "rule": (
                 "Per-obligation PROOF_STATUS, corpus reported_status, and locked-proven "
-                "membership are distinct dimensions. No status string promotes a formula."
+                "membership are distinct dimensions. No status string promotes a formula, "
+                "and a Lean citation does not verify a Python implementation."
             ),
         },
         "summary": {
