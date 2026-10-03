@@ -1,0 +1,19 @@
+{
+  "schema": "szl.formula-ledger-erratum/v1",
+  "archived_source": {
+    "repository": "szl-holdings/szl-formula-ledger",
+    "revision": "ceaef540eba6c5acf85091faf4a20cd9aef480f9",
+    "path": "formulas/corpus.json",
+    "git_blob_sha": "600654f89cb062320acae4284cb5220ff881eb3c"
+  },
+  "corrections": [
+    {
+      "id": "A4-bounded-amgm",
+      "field": "source",
+      "archived_value": "canonical-formulas-v1/lambda_bounded; lutar-lean Bound.lean; F19",
+      "corrected_value": "canonical-formulas-v1/lambda_bounded; lutar-lean Lutar/Bound.lean (Λ_le_max)",
+      "reason": "The bound is in Lutar/Bound.lean. Locked F19 proves Nat addition monotonicity, not the geometric-mean bound. This citation does not verify a Lean-to-Python mapping.",
+      "evidence": "lutar-lean Lutar/Bound.lean: Λ_le_max; Lutar/Puriq/Formulas/ProvedFormulas.lean: f19_bekenstein_additive"
+    }
+  ]
+}

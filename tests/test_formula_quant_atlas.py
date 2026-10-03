@@ -11,9 +11,12 @@ import szl_formulas as formulas
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "atlas" / "source-formula-ledger-corpus.json"
+ERRATUM = ROOT / "atlas" / "source-formula-ledger-erratum.v1.json"
 ATLAS = ROOT / "atlas" / "formula-atlas.v1.json"
 SOURCE_SHA256 = "c0b6dfee3233097307c518a57c076e5ba3ea9013f34ab454bef92aeddf0f3634"
 SOURCE_GIT_BLOB_SHA = "600654f89cb062320acae4284cb5220ff881eb3c"
+ERRATUM_SHA256 = "21cd2887daa8d4d0b57723b8e9819ee2f6a7b825ab7c777b559c5058d13ee594"
+ERRATUM_GIT_BLOB_SHA = "d33faf9c29d61c5314dffdcc67f68443ebd13842"
 PACKAGE_ATLASES = (
     ROOT / "torch-ext" / "szl_formulas" / "formula_atlas.v1.json",
     ROOT / "build" / "torch-universal" / "szl_formulas" / "formula_atlas.v1.json",
@@ -48,6 +51,20 @@ def test_attributed_source_and_counts_are_exact() -> None:
     assert (
         hashlib.sha1(git_object, usedforsecurity=False).hexdigest()
         == SOURCE_GIT_BLOB_SHA
+    )
+    erratum_raw = ERRATUM.read_bytes()
+    assert atlas["source"]["state"] == "ARCHIVED_ATTRIBUTED_SOURCE_WITH_LOCAL_ERRATUM"
+    assert atlas["source"]["erratum"] == {
+        "path": "atlas/source-formula-ledger-erratum.v1.json",
+        "sha256": ERRATUM_SHA256,
+        "git_blob_sha": ERRATUM_GIT_BLOB_SHA,
+        "corrected_ids": ["A4-bounded-amgm"],
+    }
+    assert hashlib.sha256(erratum_raw).hexdigest() == ERRATUM_SHA256
+    erratum_git_object = f"blob {len(erratum_raw)}\0".encode("ascii") + erratum_raw
+    assert (
+        hashlib.sha1(erratum_git_object, usedforsecurity=False).hexdigest()
+        == ERRATUM_GIT_BLOB_SHA
     )
     assert atlas["summary"]["attributed_formula_count"] == 30
     assert atlas["summary"]["executable_formula_count"] == 21
@@ -92,10 +109,41 @@ def test_locked_eight_remains_separate_from_all_status_strings() -> None:
         "F1", "F4", "F7", "F11", "F12", "F18", "F19", "F22"
     }
     assert authority["f_number_to_executable_registry_mapping"] == "UNKNOWN_NOT_INFERRED"
+    assert authority["lean_theorem_to_python_function_mapping"] == "UNVERIFIED"
     for row in atlas["attributed_formulas"]:
         assert row["locked_proven_membership"] == "UNKNOWN_NOT_INFERRED_FROM_REPORTED_STATUS"
         if row["class"] == "CONJECTURE":
             assert row["admission"] == "OPEN_NOT_EXECUTION_AUTHORITY"
+
+
+def test_a4_cites_its_bound_and_f19_remains_only_nat_addition() -> None:
+    archived = json.loads(SOURCE.read_text(encoding="utf-8"))
+    archived_rows = {row["id"]: row for row in archived["formulas"]}
+    erratum = json.loads(ERRATUM.read_text(encoding="utf-8"))
+    atlas_rows = {
+        row["id"]: row for row in formulas.load_formula_atlas()["attributed_formulas"]
+    }
+    correction = erratum["corrections"]
+    assert len(correction) == 1
+    assert correction[0]["id"] == "A4-bounded-amgm"
+    assert correction[0]["field"] == "source"
+    assert correction[0]["archived_value"] == archived_rows["A4-bounded-amgm"]["source"]
+    assert correction[0]["corrected_value"] == (
+        "canonical-formulas-v1/lambda_bounded; "
+        "lutar-lean Lutar/Bound.lean (Λ_le_max)"
+    )
+    assert atlas_rows["A4-bounded-amgm"]["source"] == correction[0]["corrected_value"]
+    assert "F19" not in atlas_rows["A4-bounded-amgm"]["source"]
+    assert atlas_rows["F19-bekenstein-additive"]["statement"] == (
+        "Entropy budget additive & monotone over a region partition: "
+        "s1 <= s1 + s2 for s2 >= 0 (NOT the full Bekenstein bound)."
+    )
+    assert atlas_rows["F19-bekenstein-additive"]["source"] == (
+        "lutar-lean F19 (additive fragment); knowledge.json F19"
+    )
+    assert atlas_rows["A4-bounded-amgm"]["locked_proven_membership"] == (
+        "UNKNOWN_NOT_INFERRED_FROM_REPORTED_STATUS"
+    )
 
 
 def test_every_formula_has_one_explicit_quant_domain() -> None:
