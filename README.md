@@ -50,8 +50,9 @@ get_kernel("SZLHOLDINGS/szl-formulas", revision=hf_revision, trust_remote_code=T
 
 ## Source-only development
 
-Review [`torch-ext/szl_formulas/`](https://github.com/szl-holdings/szl-formulas/tree/50eeee8326773a9b42ceda1a52a4290e803bbb20/torch-ext/szl_formulas)
-at that immutable GitHub source revision, separately from any Hub release.
+Take the exact 40-character GitHub source revision from the qualifying publication
+receipt, then review `https://github.com/szl-holdings/szl-formulas/tree/<SOURCE_SHA>/torch-ext/szl_formulas`
+at that immutable revision, separately from any Hub release.
 With the source's dependencies already available, run from the reviewed checkout root:
 
 ```python
