@@ -11,10 +11,18 @@
   "license": "Apache-2.0",
   "artifact_kind": "kernel-code-and-configuration",
   "trained_weights_present": false,
-  "tests": "17/17 passed (MEASURED local python3 run, stdlib-only)",
   "formula_count": 21,
   "locked_proven_count": 8,
-  "locked_proven_ids": ["F1", "F4", "F7", "F11", "F12", "F18", "F19", "F22"],
+  "locked_proven_ids": [
+    "F1",
+    "F4",
+    "F7",
+    "F11",
+    "F12",
+    "F18",
+    "F19",
+    "F22"
+  ],
   "proof_status_source": "mirrored verbatim from SZLHOLDINGS/canonical-formulas-v1",
   "lambda_status": "Conjecture 1 (open) — uniqueness unproven; composer Λ roll-up is ADVISORY only",
   "mirrors": "SZLHOLDINGS/canonical-formulas-v1 (code/python/formulas.py + composer.py)",
@@ -23,5 +31,11 @@
     "locked_count_theorem": "locked_count_eight (no-axiom, PROVEN_FORMULAS.md)",
     "doi_lutar_lean": "10.5281/zenodo.20434308",
     "doi_concept": "10.5281/zenodo.19944926"
+  },
+  "test_evidence": {
+    "state": "REVISION_SCOPED_CI_REQUIRED",
+    "workflow": ".github/workflows/cpu-contract.yml",
+    "job": "verify canonical kernel",
+    "rule": "No frozen pass count is a current qualification; bind test claims to the exact GitHub source revision and native check run."
   }
 }
