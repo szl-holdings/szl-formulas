@@ -53,6 +53,18 @@ def test_metadata_refuses_a_frozen_test_count() -> None:
     assert "frozen pass count" in evidence["rule"]
 
 
+def test_reed_solomon_receipt_tracks_the_requested_locked_example() -> None:
+    from szl_formulas._aggregators import reed_solomon_singleton
+
+    locked = reed_solomon_singleton()
+    assert locked["ok"] is True
+    assert locked["status"] == "CHECKED"
+
+    different_parameters = reed_solomon_singleton(11, 6)
+    assert different_parameters["ok"] is False
+    assert different_parameters["status"] == "FAILED"
+
+
 def test_runtime_does_not_promote_historical_counts_to_current_measurements() -> None:
     text = (SOURCE_PACKAGE / "_aggregators.py").read_text(encoding="utf-8")
     assert "LEDGER_CHECKED_N" not in text
