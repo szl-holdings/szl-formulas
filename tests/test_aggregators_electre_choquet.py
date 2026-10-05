@@ -14,6 +14,7 @@ from szl_formulas._aggregators import (
     electre_gate_vs_profile,
     electre_iii,
     min_capacity,
+    reed_solomon_singleton,
 )
 
 
@@ -69,3 +70,14 @@ def test_uniform_floors_finite() -> None:
     r = electre_gate_vs_profile(list(YUYAY_FLOORS))
     assert r.state == "MEASURED"
     assert r.credibility is not None and math.isfinite(r.credibility)
+
+
+def test_reed_solomon_operational_fixture_is_defined_and_bounded() -> None:
+    measured = reed_solomon_singleton()
+    assert measured["ok"] is True
+    assert measured["status"] == "CHECKED"
+    assert measured["d"] == 5
+
+    unsupported = reed_solomon_singleton(n=11, k=6)
+    assert unsupported["ok"] is False
+    assert unsupported["status"] == "FAILED"
