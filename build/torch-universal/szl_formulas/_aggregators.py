@@ -356,7 +356,7 @@ def kraft_binary(lengths: list[int]) -> dict:
 def reed_solomon_singleton(n: int = 10, k: int = 6) -> dict:
     """F18 — d ≤ n−k+1; RS meets it: d = n−k+1."""
     d = n - k + 1
-    return {"id": "F18-reed-solomon-singleton", "n": n, "k": k, "d": d, "ok": True,
+    return {"id": "F18-reed-solomon-singleton", "n": n, "k": k, "d": d, "ok": ok,
             "status": "CHECKED", "class": "SYMBOLIC",
             "note": "Singleton bound identity. Not a claim the whole locked-8 ran here."}
 
