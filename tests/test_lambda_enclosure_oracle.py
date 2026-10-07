@@ -14,6 +14,10 @@ Containment is asserted as ``out ∈ [lo - eps, hi + eps]``. The pinned fixture
 not the correctly rounded exact value), so ``value_f64 ∈ [lo, hi]`` is NOT
 asserted.
 
+The oracle must not depend on the thread's global ``decimal`` context: the
+same results are required under a hostile context (``prec=1``, every signal
+trapped) and no flags may be left on the default one.
+
 This is numeric certification only, NOT a gate verdict: it does not model
 szl-lambda-gate's NUMERIC_TIE policy band. Λ uniqueness remains Conjecture 1
 (open); nothing here depends on it.
@@ -26,7 +30,23 @@ import json
 import math
 import random
 import sys
-from decimal import Decimal
+from decimal import (
+    ROUND_HALF_EVEN,
+    ROUND_UP,
+    Clamped,
+    Context,
+    Decimal,
+    DivisionByZero,
+    FloatOperation,
+    Inexact,
+    InvalidOperation,
+    Overflow,
+    Rounded,
+    Subnormal,
+    Underflow,
+    getcontext,
+    localcontext,
+)
 from fractions import Fraction
 from pathlib import Path
 
@@ -126,6 +146,13 @@ def test_oracle_is_stdlib_only_and_independent_of_the_kernel_at_import():
     allowed = {"__future__", "math", "struct", "sys", "decimal", "fractions", "pathlib", "typing"}
     assert top_level <= allowed, top_level - allowed
     assert "szl_formulas" not in top_level  # the kernel is injected, never imported at module level
+    # The abs builtin rounds a Decimal to the thread's global context; the oracle must use
+    # copy_abs (or an explicit Context) so no bound depends on decimal.getcontext().
+    builtin_calls = {
+        node.func.id for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "abs" not in builtin_calls, "use Decimal.copy_abs, never abs(Decimal)"
 
 
 def test_oracle_states_its_scope_honestly():
@@ -154,13 +181,43 @@ def test_oracle_states_its_scope_honestly():
         ([0.5, 0.125], [0.5, 0.5], Fraction(1, 4)),
         ([0.5, 0.5], None, Fraction(1, 2)),
         ([0.0625, 1.0, 1.0, 1.0], [0.5, 0.25, 0.125, 0.125], Fraction(1, 4)),
+        ([0.0625, 0.25], [0.5, 0.5], Fraction(1, 8)),
+        ([5e-324, 1.0], [0.5, 0.5], Fraction(1, 2**537)),  # sqrt of the smallest subnormal
     ],
-    ids=["quarter", "sqrt_quarter_times_one", "sqrt_sixteenth", "uniform_half", "ones_contribute_zero"],
+    ids=[
+        "quarter", "sqrt_quarter_times_one", "sqrt_sixteenth", "uniform_half",
+        "ones_contribute_zero", "eighth_from_two_powers", "sqrt_min_subnormal",
+    ],
 )
 def test_closed_forms_are_enclosed(impl_name, axes, weights, exact):
     out, lo, hi, eps = _check_enclosure(IMPLS[impl_name], axes, weights)
     assert Fraction(lo) <= exact <= Fraction(hi)
     assert Fraction(lo) < exact < Fraction(hi)  # strictly, because each bound is widened
+
+
+@pytest.mark.parametrize("impl_name", IMPL_NAMES)
+def test_enclosed_means_inside_the_error_band_not_correctly_rounded(impl_name):
+    """ENCLOSED certifies ``out in [lo - eps, hi + eps]``; it is NOT a correct-rounding claim.
+
+    Both cases are deterministic on every platform: the floats examined are
+    constructed here, not read from libm.
+    """
+    impl = IMPLS[impl_name]
+    # Exact 1/8: a float one ulp above 1/8 is outside the 1e-60-wide enclosure yet inside the
+    # ~8-ulp error band, so a kernel returning it would still be ENCLOSED (and legitimately so).
+    axes, weights = [0.0625, 0.25], [0.5, 0.5]
+    out, lo, hi, eps = _check_enclosure(impl, axes, weights)
+    one_ulp_high = math.nextafter(0.125, 1.0)
+    assert Fraction(lo) < Fraction(1, 8) < Fraction(hi) < Fraction(one_ulp_high)
+    assert Fraction(one_ulp_high) <= Fraction(hi) + eps
+    assert O.classify(lo, hi, eps, 0.125) == O.UNKNOWN  # exact tie: honestly undecidable
+    # 48 x nextafter(1, 0) and 49 x 1.0: the exact value is strictly below 1 (hi < 1), while the
+    # float 1.0 lies inside the band; a kernel returning 1.0 is ENCLOSED, not correctly rounded.
+    axes = [math.nextafter(1.0, 0.0)] * 48 + [1.0] * 49
+    out, lo, hi, eps = _check_enclosure(impl, axes, None)
+    assert hi < 1 and Fraction(1) - Fraction(hi) < Fraction(1, 10**16)
+    assert Fraction(1) <= Fraction(hi) + eps
+    assert out in (1.0, math.nextafter(1.0, 0.0))  # the only floats inside the band
 
 
 @pytest.mark.parametrize("impl_name", IMPL_NAMES)
@@ -566,6 +623,92 @@ def test_certify_report_shape(impl_name):
     json.dumps(report)  # plain dict, serialisable
 
 
+# --------------------------------------------------------------------------- #
+# Independence from the thread's global decimal context                         #
+# --------------------------------------------------------------------------- #
+ALL_SIGNALS = [
+    Clamped, DivisionByZero, Inexact, InvalidOperation, Overflow, Rounded, Subnormal,
+    Underflow, FloatOperation,
+]
+# prec=1 and ROUND_UP would wreck any implicit operation; trapping every signal turns a
+# silent rounding into an exception. The oracle must neither notice nor touch it.
+HOSTILE = Context(prec=1, rounding=ROUND_UP, Emin=-1, Emax=1, traps=ALL_SIGNALS)
+REF_PREC = 100
+
+
+def _abs_ln_reference_upper(x) -> Fraction:
+    """``|ln x|`` rounded at 100 digits then stepped up once: a true upper bound, independent code path."""
+    ref = Context(prec=REF_PREC, rounding=ROUND_HALF_EVEN, Emin=-999999, Emax=999999)
+    with localcontext() as scratch:
+        scratch.traps[FloatOperation] = False
+        d = Decimal(x)
+    if d == 1:
+        return Fraction(0)  # ln 1 = 0 exactly; nothing was rounded, so nothing to step up
+    return Fraction(d.ln(ref).copy_abs().next_plus(ref))
+
+
+def _abs_ln_probe_axes():
+    rng = random.Random(SWEEP_SEED + 2)
+    axes = {
+        O.decode_f64(x) for v in VECTORS if isinstance(v.get("axes"), list) for x in v["axes"]
+    }
+    axes = {x for x in axes if isinstance(x, (int, float)) and not isinstance(x, bool) and 0 < x <= 1}
+    axes |= {5e-324, 1e-300, 2.2250738585072014e-308, math.nextafter(1.0, 0.0), 0.5, 0.25, 0.9,
+             0.81, 0.36048478541219686, 1.0 - 2.0**-52, THR}
+    axes |= {rng.random() for _ in range(300)}
+    axes |= {rng.uniform(0.0, 1.0) * 1e-300 for _ in range(50)}
+    return sorted(x for x in axes if x > 0)
+
+
+def test_abs_ln_upper_never_understates_and_ignores_the_global_context():
+    probe = _abs_ln_probe_axes()
+    assert len(probe) > 300 and 5e-324 in probe and 1.0 in probe
+    default_values = {}
+    for x in probe:
+        u = O.abs_ln_upper(x)
+        ref_hi = _abs_ln_reference_upper(x)
+        assert u >= ref_hi, x  # >= true |ln x|, since the reference is itself an upper bound
+        assert u - ref_hi < Fraction(1, 10**28) * max(u, Fraction(1)), x  # and not loosened
+        default_values[x] = u
+    assert O.abs_ln_upper(1.0) == 0
+    with localcontext(HOSTILE):
+        for x in probe:
+            assert O.abs_ln_upper(x) == default_values[x], x  # identical under prec=1, all traps
+    # The 28-digit global default must not show up anywhere in a prec-30 bound.
+    assert O.abs_ln_upper(0.9) == Fraction(Decimal("0.105360515657826276555878211392"))
+
+
+CONTEXT_PROBE_CASES = [
+    ([0.95, 0.92, 0.88, 0.9], [0.25] * 4, 0.8),
+    ([5e-324, 1.0], [0.5, 0.5], None),
+    ([0.9, 0.5], [0.5 + 4e-13, 0.5], None),
+    ([0.0, 0.9], None, 0.5),
+    ([0.7] * 97, None, THR),
+    ([THR], None, THR),
+]
+
+
+@pytest.mark.parametrize("impl_name", IMPL_NAMES)
+def test_oracle_results_do_not_depend_on_the_global_decimal_context(impl_name):
+    impl = IMPLS[impl_name]
+    default_ctx = getcontext()
+    default_ctx.clear_flags()
+    baseline = [O.certify(a, w, t, impl=impl) for a, w, t in CONTEXT_PROBE_CASES]
+    baseline_eps = [
+        O.float_error_bound(a, O.kernel_weights(a, w), Decimal(r["hi"]))
+        for (a, w, _), r in zip(CONTEXT_PROBE_CASES, baseline)
+    ]
+    assert not any(default_ctx.flags.values()), default_ctx.flags  # no flag leaks onto the default context
+    with localcontext(HOSTILE) as hostile:
+        for (a, w, t), want, want_eps in zip(CONTEXT_PROBE_CASES, baseline, baseline_eps):
+            assert O.certify(a, w, t, impl=impl) == want, (a, w, t)
+            assert O.enclose(a, w, impl=impl) == (Decimal(want["lo"]), Decimal(want["hi"]))
+            assert O.float_error_bound(a, O.kernel_weights(a, w), Decimal(want["hi"])) == want_eps
+        assert not any(hostile.flags.values()), hostile.flags
+        assert (hostile.prec, hostile.rounding) == (1, ROUND_UP)
+    assert getcontext() is default_ctx and default_ctx.prec == 28
+
+
 def test_float_error_bound_scales_with_hi_and_floors_subnormals():
     eps_half = O.float_error_bound([0.5, 0.5], None, Decimal("0.5"))
     assert 0 < eps_half < Fraction(1, 10**14)
@@ -577,7 +720,38 @@ def test_float_error_bound_scales_with_hi_and_floors_subnormals():
     assert O.abs_ln_upper(0.5) > Fraction(6931471805599453, 10**16)  # > ln 2 lower digits
 
 
-def test_nesting_failure_is_an_error_not_a_fallback():
+def test_error_model_precondition_is_refused_not_relaxed():
     assert issubclass(O.OracleInconsistency, RuntimeError)
     with pytest.raises(O.OracleInconsistency):
         O.float_error_bound([0.5], [1.0], Decimal(1), libm_ulps=10**20)  # d_s > 1 is refused
+
+
+@pytest.mark.parametrize("impl_name", IMPL_NAMES)
+def test_enclose_nested_raises_when_the_bounds_do_not_nest(impl_name, monkeypatch):
+    impl = IMPLS[impl_name]
+    real = O.enclose_exact
+
+    def widened_at_check_prec(xs, ws, prec=O.DEFAULT_PREC):
+        lo, hi = real(xs, ws, prec)
+        if prec == O.CHECK_PREC:  # a "more precise" enclosure that pokes outside the coarse one
+            return lo, min(O.ONE, hi + Decimal("1e-30"))
+        return lo, hi
+
+    monkeypatch.setattr(O, "enclose_exact", widened_at_check_prec)
+    with pytest.raises(O.OracleInconsistency, match="does not contain"):
+        O.enclose_nested([0.9, 0.5], None, impl=impl)
+    with pytest.raises(O.OracleInconsistency):
+        O.certify([0.9, 0.5], None, impl=impl)  # certify never falls back to the coarse enclosure
+    monkeypatch.undo()
+    lo, hi, lo2, hi2 = O.enclose_nested([0.9, 0.5], None, impl=impl)
+    assert lo < lo2 <= hi2 < hi
+
+
+def test_classify_accepts_any_int_tau_exactly():
+    lo, hi, eps = Decimal("0.4"), Decimal("0.6"), Fraction(0)
+    assert O.classify(lo, hi, eps, 1) == O.SEPARATED_BELOW
+    assert O.classify(lo, hi, eps, 0) == O.SEPARATED_ABOVE
+    assert O.classify(lo, hi, eps, 10**400) == O.SEPARATED_BELOW  # too large for float; ints are exact
+    assert O.classify(lo, hi, eps, -(10**400)) == O.SEPARATED_ABOVE
+    with pytest.raises(ValueError):
+        O.classify(lo, hi, eps, -math.inf)

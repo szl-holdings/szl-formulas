@@ -44,6 +44,12 @@ Contract
   because ``x <= 1`` and ``w > 0`` give ``Σ wᵢ ln xᵢ <= 0``.
 * Defence in depth: ``certify`` recomputes at ``check_prec`` (90) and raises
   ``OracleInconsistency`` unless the two enclosures nest.
+* No arithmetic runs under the thread's global ``decimal`` context. Every
+  operation either uses an explicit ``Context`` (prec, rounding, traps) or is
+  exact by specification (``exact_decimal`` construction, comparisons,
+  ``copy_abs``, ``Fraction(Decimal)``). Results are identical under a hostile
+  global context (``prec=1``, every signal trapped) and no flags are left on
+  it; the tests pin both.
 * ``float_error_bound`` is exact ``Fraction`` arithmetic with ONE labelled
   ASSUMPTION (``LIBM_ULP_ASSUMPTION``): the platform libm ``math.log`` and
   ``math.exp`` are each within 4 ulp of the exact result. IEEE 754 does not
@@ -66,10 +72,12 @@ from decimal import (
     Context,
     Decimal,
     DivisionByZero,
+    FloatOperation,
     InvalidOperation,
     Overflow,
     Subnormal,
     Underflow,
+    localcontext,
 )
 from fractions import Fraction
 from pathlib import Path
@@ -127,6 +135,19 @@ class OracleInconsistency(RuntimeError):
 
 def _ctx(prec: int, rounding: str) -> Context:
     return Context(prec=prec, rounding=rounding, Emin=-999999, Emax=999999, traps=_TRAPS)
+
+
+def exact_decimal(value) -> Decimal:
+    """Exact ``Decimal`` of a float, int or Decimal with no global-context arithmetic or flag leak.
+
+    ``Decimal(float)`` is exact by specification but records ``FloatOperation``
+    on the thread's context (and raises if that signal is trapped there). The
+    conversion runs on a scratch copy, so the caller's context is neither
+    consulted for precision nor modified.
+    """
+    with localcontext() as scratch:
+        scratch.traps[FloatOperation] = False
+        return Decimal(value)
 
 
 # --------------------------------------------------------------------------- #
@@ -223,7 +244,7 @@ def enclose_exact(
 
 
 def _exact_inputs(axes, ws) -> Tuple[List[Decimal], List[Decimal]]:
-    return [Decimal(x) for x in axes], [Decimal(w) for w in ws]
+    return [exact_decimal(x) for x in axes], [exact_decimal(w) for w in ws]
 
 
 def enclose(axes, weights=None, prec: int = DEFAULT_PREC, *, impl=None) -> Tuple[Decimal, Decimal]:
@@ -248,7 +269,7 @@ def enclose_rational_weights(
     is no kernel validation here; axes must be real numbers in [0, 1] and every
     weight must be a positive Fraction.
     """
-    xs = [Decimal(x) for x in axes]
+    xs = [exact_decimal(x) for x in axes]
     if any(not (0 <= x <= 1) for x in xs):
         raise ValueError("axes must lie in [0, 1]")
     ws = [Fraction(w) for w in weights]
@@ -277,12 +298,19 @@ def enclose_nested(
 # Float error model: exact rationals, one labelled libm assumption              #
 # --------------------------------------------------------------------------- #
 def abs_ln_upper(x, prec: int = 30) -> Fraction:
-    """Rigorous rational upper bound on ``|ln x|`` for ``0 < x <= 1`` (never ``math.log``)."""
-    d = Decimal(x)
+    """Rigorous rational upper bound on ``|ln x|`` for ``0 < x <= 1`` (never ``math.log``).
+
+    ``x.ln(he)`` is correctly rounded at ``prec`` digits, so ``|ln x|`` is at most
+    half an ulp above its magnitude and one ``next_plus`` step bounds it. The
+    magnitude is taken with ``copy_abs`` (context-free, no rounding), NOT the
+    ``abs`` builtin, which rounds to the thread's global context and would make
+    the bound depend on ``decimal.getcontext().prec``.
+    """
+    d = exact_decimal(x)
     if d == 1:
         return Fraction(0)
     he = _ctx(prec, ROUND_HALF_EVEN)
-    return Fraction(abs(d.ln(he)).next_plus(he))
+    return Fraction(d.ln(he).copy_abs().next_plus(he))
 
 
 def float_error_bound(
@@ -336,7 +364,22 @@ def check_platform_identities() -> Dict[str, bool]:
 # Threshold relation and certificate                                            #
 # --------------------------------------------------------------------------- #
 def _exact_tau(tau) -> Fraction:
-    if isinstance(tau, bool) or not isinstance(tau, (int, float)) or not math.isfinite(tau):
+    """Exact rational of the threshold the code compares against.
+
+    Accepted: a finite float (the usual binary64 threshold) or any int (ints are
+    always finite and Python compares ``float >= int`` exactly, so no float
+    conversion is attempted). Rejected with ``ValueError``: bool, NaN, +-inf,
+    None, strings, Decimal and every other type.
+    """
+    if isinstance(tau, bool):
+        ok = False
+    elif isinstance(tau, int):
+        ok = True
+    elif isinstance(tau, float):
+        ok = math.isfinite(tau)
+    else:
+        ok = False
+    if not ok:
         raise ValueError(
             "tau must be the exact finite binary64 (or int) the code compares against, "
             f"got {tau!r}"
