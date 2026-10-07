@@ -171,15 +171,53 @@ def lambda_bounded(x: List[float]) -> bool:
 
 # 4. pac_bayes_mcallester — McAllester 1999 PAC-Bayes bound.
 def pac_bayes_mcallester(empirical_risk: float, kl: float, n: int, delta: float) -> float:
-    """R(Q) ≤ R̂(Q) + sqrt((KL + ln(2√n/δ)) / 2n). PROOF-STATUS: SORRY(PACBayes)."""
-    if n <= 0:
-        raise ValueError("n must be positive")
-    if not (0.0 < delta < 1.0):
-        raise ValueError("delta must be in (0,1)")
+    """R(Q) ≤ R̂(Q) + sqrt((KL + ln(2√n/δ)) / 2n).
+
+    Maurer (2004) refinement of McAllester (1999); requires n >= 8 and a loss
+    in [0,1]. Fails closed: every argument must be a real number (bool is not
+    a number) and finite; 0 <= empirical_risk <= 1; kl >= 0; n an int >= 8;
+    0 < delta < 1. A violation raises ValueError. Nothing is clamped: for every
+    valid input ln(2√n/δ) > ln 2 > 0, so the complexity term is strictly
+    positive and a NaN cannot pass through. Evaluated in float arithmetic
+    (math.log, math.sqrt), not exact real arithmetic; a kl or n beyond float
+    range, or a 2√n/δ that overflows, is an error, never a degenerate bound.
+    PROOF-STATUS: SORRY(PACBayes).
+    """
+    fields = (("empirical_risk", empirical_risk), ("kl", kl), ("n", n), ("delta", delta))
+    for name, value in fields:
+        if not _lambda_v1_is_real(value):
+            raise ValueError(
+                f"{name} must be a real number (bool is not a number), got {type(value).__name__}"
+            )
+    for name, value in fields:
+        if _lambda_v1_is_nonfinite(value):
+            raise ValueError(f"{name} must be finite, got {value!r}")
+    if not isinstance(n, int):
+        raise ValueError(f"n must be an int (sample size), got {type(n).__name__}")
+    if n < 8:
+        raise ValueError("n must be >= 8 (Maurer 2004 validity)")
+    if not (0.0 <= empirical_risk <= 1.0):
+        raise ValueError("empirical_risk must be in [0,1] (bounded loss)")
     if kl < 0.0:
         raise ValueError("KL divergence must be >= 0")
-    complexity = (kl + math.log(2.0 * math.sqrt(n) / delta)) / (2.0 * n)
-    return empirical_risk + math.sqrt(max(0.0, complexity))
+    if not (0.0 < delta < 1.0):
+        raise ValueError("delta must be in (0,1)")
+    try:
+        float(kl)
+    except OverflowError:
+        raise ValueError("kl is too large for float arithmetic") from None
+    try:
+        two_n = 2.0 * n
+    except OverflowError:
+        raise ValueError("n is too large for float arithmetic") from None
+    if not math.isfinite(two_n):
+        raise ValueError("n is too large for float arithmetic")
+    complexity = (kl + math.log(2.0 * math.sqrt(n) / delta)) / two_n
+    if not (math.isfinite(complexity) and complexity > 0.0):
+        raise ValueError(
+            "complexity term is not a positive finite float (2*sqrt(n)/delta overflowed)"
+        )
+    return empirical_risk + math.sqrt(complexity)
 
 
 # 5. bekenstein_cascade — Bekenstein entropy bound (dimensional helper).
