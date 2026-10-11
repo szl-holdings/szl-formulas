@@ -20,36 +20,44 @@ PROOF_STATUS stays "SORRY(PACBayes)" verbatim. Λ remains Conjecture 1 (open).
 """
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import inspect
 import math
 import random
 import re
 import sys
+from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "torch-ext"))
-
-import szl_formulas as F  # noqa: E402
-from szl_formulas import _formulas as TORCH_EXT  # noqa: E402
-
-BUILD_FILE = ROOT / "build" / "torch-universal" / "szl_formulas" / "_formulas.py"
 
 
-def _load_by_path(name: str, path: Path):
-    # _formulas.py imports only the stdlib, so the Hub copy loads standalone.
-    spec = importlib.util.spec_from_file_location(name, path)
+def _load_package(name: str, path: Path):
+    # Isolated package names keep relative imports, registries and composers
+    # bound to the copy under test, regardless of other tests' sys.path edits.
+    spec = importlib.util.spec_from_file_location(
+        name, path / "__init__.py", submodule_search_locations=[str(path)]
+    )
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
 
-BUILD = _load_by_path("szl_formulas_build_universal_formulas_pac_bayes", BUILD_FILE)
-IMPLS = {"torch-ext": TORCH_EXT, "build/torch-universal": BUILD}
+PACKAGES = {
+    label: _load_package(f"_pac_bayes_test_{index}", ROOT / label / "szl_formulas")
+    for index, label in enumerate(("torch-ext", "build/torch-universal"))
+}
+IMPLS = {
+    label: importlib.import_module(f"{package.__name__}._formulas")
+    for label, package in PACKAGES.items()
+}
 IMPL_PARAMS = pytest.mark.parametrize("impl", list(IMPLS.values()), ids=list(IMPLS))
+PACKAGE_PARAMS = pytest.mark.parametrize("package", list(PACKAGES.values()), ids=list(PACKAGES))
 
 NAN = float("nan")
 INF = float("inf")
@@ -249,6 +257,7 @@ def test_both_package_copies_agree_bit_for_bit_on_forge_samples():
 # --------------------------------------------------------------------------- #
 # Governed loop: a raised step halts before any receipt                        #
 # --------------------------------------------------------------------------- #
+@PACKAGE_PARAMS
 @pytest.mark.parametrize(
     "args",
     [
@@ -259,19 +268,20 @@ def test_both_package_copies_agree_bit_for_bit_on_forge_samples():
         pytest.param([0.1, 10**400, 1000, 0.05], id="huge-kl"),
     ],
 )
-def test_governed_loop_halts_on_raised_step_before_any_receipt(args):
-    chain = F.run_governed_loop([{"formula_name": "pac_bayes_mcallester", "args": args}])
+def test_governed_loop_halts_on_raised_step_before_any_receipt(package, args):
+    chain = package.run_governed_loop([{"formula_name": "pac_bayes_mcallester", "args": args}])
     assert chain["halted"] is True
     assert "raised" in chain["halt_reason"]
     assert "pac_bayes_mcallester" in chain["halt_reason"]
     assert chain["receipts"] == []
     assert chain["lambda_aggregate"] == 0.0
-    assert chain["root_hash"] == F.GENESIS
+    assert chain["root_hash"] == package.GENESIS
     assert chain["replay_ok"] is True
 
 
-def test_governed_loop_valid_step_scalar_is_one_minus_the_bound():
-    chain = F.run_governed_loop(
+@PACKAGE_PARAMS
+def test_governed_loop_valid_step_scalar_is_one_minus_the_bound(package):
+    chain = package.run_governed_loop(
         [{"formula_name": "pac_bayes_mcallester", "args": list(BASELINE_ARGS)}]
     )
     assert chain["halted"] is False
@@ -280,6 +290,170 @@ def test_governed_loop_valid_step_scalar_is_one_minus_the_bound():
     assert chain["receipts"][0]["scalar"] == 1.0 - BASELINE_VALUE
     assert chain["lambda_aggregate"] == pytest.approx(1.0 - BASELINE_VALUE)
     assert chain["replay_ok"] is True
+
+
+@PACKAGE_PARAMS
+def test_composer_and_registry_belong_to_the_package_copy(package):
+    composer = importlib.import_module(f"{package.__name__}._composer")
+    formulas = importlib.import_module(f"{package.__name__}._formulas")
+    assert composer.F is formulas
+    assert package.REGISTRY is formulas.REGISTRY
+    assert Path(composer.__file__).parent == Path(package.__file__).parent
+
+
+@PACKAGE_PARAMS
+def test_pac_scalar_is_nonincreasing_across_vacuous_boundary(package):
+    composer = importlib.import_module(f"{package.__name__}._composer")
+    bounds = [
+        0, 0.0, BASELINE_VALUE, 0.5, math.nextafter(1.0, 0.0),
+        1, 1.0, math.nextafter(1.0, INF), 2.0, 22.460759633307337,
+        sys.float_info.max, 10**400,
+    ]
+    scores = [composer._to_scalar(bound, "pac_bayes_mcallester") for bound in bounds]
+    assert all(0.0 <= score <= 1.0 for score in scores)
+    assert all(left >= right for left, right in zip(scores, scores[1:]))
+    assert scores[:5] == [1.0, 1.0, 1.0 - BASELINE_VALUE, 0.5, 2**-53]
+    assert scores[5:] == [0.0] * (len(bounds) - 5)
+
+
+@PACKAGE_PARAMS
+def test_increasing_actual_kl_never_improves_the_advisory_score(package):
+    bounds, scores = [], []
+    for kl in [0.0, 1.0, 10.0, 100.0, 1000.0, 1e6, 2**1023]:
+        args = [0.1, kl, 1000, 0.05]
+        bound = package.pac_bayes_mcallester(*args)
+        chain = package.run_governed_loop([{"formula_name": "pac_bayes_mcallester", "args": args}])
+        receipt = chain["receipts"][0]
+        assert receipt["output_repr"] == repr(bound)[:120]
+        assert chain["replay_ok"] is True
+        if bound >= 1:
+            assert receipt["scalar"] == 0.0
+            assert chain["halted"] is True
+            assert chain["root_hash"] == package.GENESIS
+            assert chain["lambda_aggregate"] == 0.0
+        bounds.append(bound)
+        scores.append(receipt["scalar"])
+    assert all(left < right for left, right in zip(bounds, bounds[1:]))
+    assert all(left >= right for left, right in zip(scores, scores[1:]))
+    assert scores[-2:] == [0.0, 0.0]
+
+
+def _halt_calls(package, monkeypatch, with_prefix):
+    def forbidden_tail():
+        pytest.fail("a step ran after the loop should have halted")
+
+    monkeypatch.setitem(package.REGISTRY, "madhava_series", forbidden_tail)
+    prefix_calls = [{"formula_name": "reed_solomon_singleton", "args": [255, 223]}] if with_prefix else []
+    prefix = package.run_governed_loop(prefix_calls)
+    calls = prefix_calls + [
+        {"formula_name": "pac_bayes_mcallester", "args": []},
+        {"formula_name": "madhava_series", "args": []},
+    ]
+    return prefix, calls
+
+
+@PACKAGE_PARAMS
+@pytest.mark.parametrize("with_prefix", [False, True], ids=["first-step", "accepted-prefix"])
+@pytest.mark.parametrize("bound", [1.0, math.nextafter(1.0, INF), 2.0, sys.float_info.max, 10**400])
+def test_vacuous_bound_retains_failed_receipt_and_last_good_state(package, monkeypatch, with_prefix, bound):
+    prefix, calls = _halt_calls(package, monkeypatch, with_prefix)
+    monkeypatch.setitem(package.REGISTRY, "pac_bayes_mcallester", lambda: bound)
+    chain = package.run_governed_loop(calls)
+    index = int(with_prefix)
+    assert chain["halted"] is True
+    assert chain["halt_reason"] == f"step {index} (pac_bayes_mcallester) HALT on validators ['axis_floor']"
+    assert chain["receipts"][:-1] == prefix["receipts"]
+    assert len(chain["receipts"]) == index + 1
+    digest = sha256(b"pac_bayes_mcallester|[]|{}").hexdigest()
+    receipt_hash = sha256(
+        f'{prefix["root_hash"]}|{index}|pac_bayes_mcallester|{digest}|0.000000000'.encode()
+    ).hexdigest()
+    assert chain["receipts"][-1] == {
+        "index": index, "formula_name": "pac_bayes_mcallester", "args_digest": digest,
+        "output_repr": repr(bound)[:120], "scalar": 0.0,
+        "prev_hash": prefix["root_hash"], "receipt_hash": receipt_hash,
+        "validators": {"state_transition": True, "drift_bounds": True, "human_gate": True, "axis_floor": False},
+    }
+    assert chain["root_hash"] == prefix["root_hash"]
+    assert chain["lambda_aggregate"] == prefix["lambda_aggregate"]
+    assert chain["replay_ok"] is True
+    assert package.verify_chain(chain, calls) is True
+    tampered = deepcopy(chain)
+    tampered["receipts"][-1]["scalar"] = 1.0
+    assert package.verify_chain(tampered, calls) is False
+
+
+@PACKAGE_PARAMS
+@pytest.mark.parametrize("with_prefix", [False, True], ids=["first-step", "accepted-prefix"])
+@pytest.mark.parametrize("output", [NAN, INF, -INF, -5e-324, -1, True, False, None, "0.1", [], {}, 1j])
+def test_invalid_pac_output_halts_before_receipt_and_preserves_prefix(package, monkeypatch, with_prefix, output):
+    prefix, calls = _halt_calls(package, monkeypatch, with_prefix)
+    monkeypatch.setitem(package.REGISTRY, "pac_bayes_mcallester", lambda: output)
+    chain = package.run_governed_loop(calls)
+    assert chain["halted"] is True
+    assert chain["halt_reason"] == (
+        f"step {int(with_prefix)} (pac_bayes_mcallester) raised: "
+        "pac_bayes_mcallester bound must be a finite nonnegative real number"
+    )
+    assert chain["receipts"] == prefix["receipts"]
+    assert chain["root_hash"] == prefix["root_hash"]
+    assert chain["lambda_aggregate"] == prefix["lambda_aggregate"]
+    assert chain["replay_ok"] is True
+    assert package.verify_chain(chain, calls) is True
+
+
+@PACKAGE_PARAMS
+@pytest.mark.parametrize("bound,halted", [(0.0, False), (0.5, False), (0.5 + 5e-10, False), (0.5 + 2e-9, True)])
+def test_pac_score_respects_existing_axis_floor_tolerance(package, monkeypatch, bound, halted):
+    monkeypatch.setitem(package.REGISTRY, "pac_bayes_mcallester", lambda: bound)
+    calls = [{"formula_name": "pac_bayes_mcallester", "args": []}]
+    chain = package.run_governed_loop(calls)
+    assert chain["halted"] is halted
+    receipt = chain["receipts"][0]
+    assert receipt["scalar"] == 1.0 - bound
+    assert receipt["validators"]["axis_floor"] is not halted
+    assert chain["root_hash"] == (package.GENESIS if halted else receipt["receipt_hash"])
+    assert chain["lambda_aggregate"] == pytest.approx(0.0 if halted else 1.0 - bound)
+    assert chain["replay_ok"] is True
+
+
+@PACKAGE_PARAMS
+def test_non_pac_conversion_overflow_is_a_governed_halt(package, monkeypatch):
+    prefix, calls = _halt_calls(package, monkeypatch, True)
+    calls[1]["formula_name"] = "lambda_bounded"
+    monkeypatch.setitem(package.REGISTRY, "lambda_bounded", lambda: 10**400)
+    chain = package.run_governed_loop(calls)
+    assert chain["halted"] is True
+    assert chain["halt_reason"].startswith("step 1 (lambda_bounded) raised:")
+    assert chain["receipts"] == prefix["receipts"]
+    assert chain["root_hash"] == prefix["root_hash"]
+    assert chain["lambda_aggregate"] == prefix["lambda_aggregate"]
+    assert chain["replay_ok"] is True
+
+
+@PACKAGE_PARAMS
+@pytest.mark.parametrize("exception", [KeyboardInterrupt, SystemExit])
+def test_scalar_conversion_does_not_swallow_process_control(package, monkeypatch, exception):
+    composer = importlib.import_module(f"{package.__name__}._composer")
+
+    def interrupted_conversion(*args):
+        raise exception("stop")
+
+    monkeypatch.setattr(composer, "_to_scalar", interrupted_conversion)
+    with pytest.raises(exception, match="stop"):
+        package.run_governed_loop([{"formula_name": "pac_bayes_mcallester", "args": list(BASELINE_ARGS)}])
+
+
+@PACKAGE_PARAMS
+def test_unrelated_formula_scalar_mappings_are_unchanged(package):
+    composer = importlib.import_module(f"{package.__name__}._composer")
+    for name in composer.RISK_LIKE - {"pac_bayes_mcallester"}:
+        assert composer._to_scalar(0.25, name) == 0.75
+        assert composer._to_scalar(2.0, name) == 1.0 - 1.0 / 3.0
+    assert composer._to_scalar(0.25, "lambda_bounded") == 0.25
+    assert composer._to_scalar(2.0, "lambda_bounded") == 1.0 / 3.0
+    for name in composer.STRUCTURAL:
+        assert composer._to_scalar({"verdict": "test"}, name) == 1.0
 
 
 # --------------------------------------------------------------------------- #
@@ -315,10 +489,11 @@ def test_nan_swallowing_clamp_is_gone_from_the_source(impl):
     assert "math.sqrt(complexity)" in source
 
 
-def test_atlas_executable_entry_and_locked_count_are_unchanged():
-    atlas = F.load_formula_atlas()
+@PACKAGE_PARAMS
+def test_atlas_executable_entry_and_locked_count_are_unchanged(package):
+    atlas = package.load_formula_atlas()
     rows = [row for row in atlas["executable_formulas"] if row["name"] == "pac_bayes_mcallester"]
     assert rows == [{"name": "pac_bayes_mcallester", "proof_status": "SORRY(PACBayes)"}]
-    assert F.proof_status("pac_bayes_mcallester") == "SORRY(PACBayes)"
-    assert F.LOCKED_PROVEN_COUNT == 8
-    assert F.registry_count() == 21
+    assert package.proof_status("pac_bayes_mcallester") == "SORRY(PACBayes)"
+    assert package.LOCKED_PROVEN_COUNT == 8
+    assert package.registry_count() == 21

@@ -17,6 +17,7 @@ good step. The Λ composition is **ADVISORY ONLY** — Λ uniqueness is Conjectu
 """
 from __future__ import annotations
 
+import math
 from hashlib import sha256
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -71,6 +72,16 @@ class ReceiptChain(TypedDict):
 
 
 def _to_scalar(out: Any, formula_name: str = "") -> float:
+    if formula_name == "pac_bayes_mcallester":
+        # The formula keeps its untruncated bound. A vacuous bound (>= 1)
+        # supplies no positive advisory score, regardless of its magnitude.
+        error = "pac_bayes_mcallester bound must be a finite nonnegative real number"
+        if isinstance(out, bool) or not isinstance(out, (int, float)):
+            raise ValueError(error)
+        if out < 0 or (isinstance(out, float) and not math.isfinite(out)):
+            raise ValueError(error)
+        # Compare before conversion so even integers above float range saturate.
+        return 0.0 if out >= 1 else 1.0 - out
     if formula_name in STRUCTURAL:
         return 1.0
     base = _raw_scalar(out)
@@ -140,11 +151,11 @@ def run_governed_loop(calls: List[FormulaCall]) -> ReceiptChain:
             break
         try:
             out = fn(*call.get("args", []), **call.get("kwargs", {}))
+            scalar = _to_scalar(out, name)
         except Exception as exc:
             halted, halt_reason = True, f"step {idx} ({name}) raised: {exc}"
             break
 
-        scalar = _to_scalar(out, name)
         running_lambda = (
             F.lambda_aggregate(scalars + [scalar]) if (scalars + [scalar]) else scalar
         )
