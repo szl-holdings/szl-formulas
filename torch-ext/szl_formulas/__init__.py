@@ -28,10 +28,20 @@ PROOF-STATUS honesty (binding — Doctrine v11):
     NEVER proven trust. Trust never reaches 100%.
 =========================================================================
 
-Quickstart (offline):
+Quickstart (Kernel Hub; see README "Load"):
+
+    import os
+    import re
+
+    # Load only a verified, immutable Kernel Hub commit. A branch name such as
+    # "main", an observed head or a successful import does not qualify a release.
+    # trust_remote_code=True executes that revision's Python: review it first.
+    hf_revision = os.environ.get("SZL_FORMULAS_HF_REVISION", "")
+    if re.fullmatch(r"[0-9a-f]{40}", hf_revision) is None:
+        raise ValueError("A verified immutable Kernel Hub revision is required")
 
     from kernels import get_kernel
-    fx = get_kernel("SZLHOLDINGS/szl-formulas", revision="main", trust_remote_code=True)
+    fx = get_kernel("SZLHOLDINGS/szl-formulas", revision=hf_revision, trust_remote_code=True)
 
     print(fx.registry_count())                    # 21
     print(fx.lambda_aggregate([0.9, 0.8, 0.95]))  # weighted geometric mean
