@@ -449,7 +449,11 @@ def test_unrelated_formula_scalar_mappings_are_unchanged(package):
     composer = importlib.import_module(f"{package.__name__}._composer")
     for name in composer.RISK_LIKE - {"pac_bayes_mcallester"}:
         assert composer._to_scalar(0.25, name) == 0.75
-        assert composer._to_scalar(2.0, name) == 1.0 - 1.0 / 3.0
+        # Changed after this file was written (audit P3): every RISK_LIKE value
+        # >= 1 now saturates at 0.0 like PAC-Bayes. It used to score
+        # 2 / (1 + 2) here, rewarding a larger risk; the full policy is pinned
+        # in tests/test_composer_risk_scores.py.
+        assert composer._to_scalar(2.0, name) == 0.0
     assert composer._to_scalar(0.25, "lambda_bounded") == 0.25
     assert composer._to_scalar(2.0, "lambda_bounded") == 1.0 / 3.0
     for name in composer.STRUCTURAL:

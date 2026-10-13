@@ -17,7 +17,10 @@ good step. The Λ composition is **ADVISORY ONLY** — Λ uniqueness is Conjectu
 """
 from __future__ import annotations
 
+import cmath
 import math
+import numbers
+from decimal import Decimal
 from hashlib import sha256
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -72,22 +75,56 @@ class ReceiptChain(TypedDict):
 
 
 def _to_scalar(out: Any, formula_name: str = "") -> float:
-    if formula_name == "pac_bayes_mcallester":
-        # The formula keeps its untruncated bound. A vacuous bound (>= 1)
-        # supplies no positive advisory score, regardless of its magnitude.
-        error = "pac_bayes_mcallester bound must be a finite nonnegative real number"
+    if formula_name in RISK_LIKE:
+        # Every RISK_LIKE output is read as a risk bound: larger is worse. The
+        # formula still returns its unclamped value (the receipt keeps its
+        # repr). A vacuous value (>= 1) supplies no positive advisory score,
+        # regardless of its magnitude; anything that is not a finite
+        # nonnegative real raises, so the loop halts before adding a receipt.
+        error = f"{formula_name} bound must be a finite nonnegative real number"
         if isinstance(out, bool) or not isinstance(out, (int, float)):
             raise ValueError(error)
-        if out < 0 or (isinstance(out, float) and not math.isfinite(out)):
+        if isinstance(out, float):
+            # Read a float subclass (e.g. numpy.float64) as its plain value, so
+            # the checks and the receipt scalar never use subclass arithmetic.
+            out = float(out)
+            if not math.isfinite(out):
+                raise ValueError(error)
+        if out < 0:
             raise ValueError(error)
         # Compare before conversion so even integers above float range saturate.
         return 0.0 if out >= 1 else 1.0 - out
     if formula_name in STRUCTURAL:
+        # A STRUCTURAL step scores 1.0 for any finite result. A non-finite
+        # number of any numeric type is not a result; reed_solomon_singleton(n, 1)
+        # returns one for n = inf, NaN, Decimal("Infinity") or numpy.float32 inf.
+        if _is_nonfinite_number(out):
+            raise ValueError(f"{formula_name} output must be finite, got {out!r}")
         return 1.0
-    base = _raw_scalar(out)
-    if formula_name in RISK_LIKE:
-        return max(0.0, min(1.0, 1.0 - base))
-    return base
+    return _raw_scalar(out)
+
+
+_NUMERIC_CONVERSIONS = ("__complex__", "__float__", "__index__")
+
+
+def _is_nonfinite_number(out: Any) -> bool:
+    """Whether ``out`` is a number that is not finite, whatever its numeric type.
+
+    Exact rationals (int, bool, Fraction, numpy integers) are always finite and
+    are not converted, so integers above float range stay valid; a Decimal is
+    checked exactly. Any other value with a numeric conversion (float and its
+    subclasses, complex, numpy, mpmath or torch scalars, ...) is read through
+    ``cmath.isfinite``; a conversion that fails propagates, so the governed loop
+    halts. A value with no numeric conversion (dict, list, str, None) is not a
+    number.
+    """
+    if isinstance(out, numbers.Rational):
+        return False
+    if isinstance(out, Decimal):
+        return not out.is_finite()
+    if not any(hasattr(type(out), name) for name in _NUMERIC_CONVERSIONS):
+        return False
+    return not cmath.isfinite(out)
 
 
 def _raw_scalar(out: Any) -> float:
