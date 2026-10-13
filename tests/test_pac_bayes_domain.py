@@ -78,8 +78,12 @@ FORGE_DELTA = (0.01, 0.5)
 FORGE_SEED = 20260721
 FORGE_SAMPLES = 500
 
-# (args, exact message fragment, id). Each formerly returned a number or leaked
-# a non-ValueError; each must now raise ValueError naming the offending field.
+# (args, exact message fragment, id). Each must raise ValueError naming the
+# offending field. At fca9707 every row returned a number, leaked a
+# non-ValueError or raised a ValueError with a different message, except the
+# rows in REJECTED_REGRESSION_PINS below: fca9707 already raised those exact
+# ValueErrors, so they pin the old contract and do not prove the fix
+# (machine-checked by test_only_labelled_rejection_rows_pass_on_the_fca9707_formula).
 REJECTED = [
     ((0.1, NAN, 1000, 0.05), "kl must be finite", "kl-nan"),
     ((0.1, INF, 1000, 0.05), "kl must be finite", "kl-inf"),
@@ -119,6 +123,10 @@ REJECTED = [
     # 2*sqrt(n)/delta overflows a float: formerly returned inf, now an error.
     ((0.1, 0.0, 5000, 5e-324), "2*sqrt(n)/delta overflowed", "delta-denormal-overflow"),
 ]
+
+# REGRESSION PIN rows of REJECTED: fca9707 already raised these with the same
+# message ("KL divergence must be >= 0", "delta must be in (0,1)").
+REJECTED_REGRESSION_PINS = {"kl-negative", "delta-zero", "delta-one", "delta-negative"}
 
 # A matrix of garbage and edge values in every argument position. Any
 # exception other than ValueError escaping the formula fails the contract.
@@ -257,28 +265,137 @@ def test_both_package_copies_agree_bit_for_bit_on_forge_samples():
 # --------------------------------------------------------------------------- #
 # Governed loop: a raised step halts before any receipt                        #
 # --------------------------------------------------------------------------- #
-@PACKAGE_PARAMS
-@pytest.mark.parametrize(
-    "args",
-    [
-        pytest.param([0.1, NAN, 1000, 0.05], id="nan-kl"),
-        pytest.param([-5.0, 1.0, 1000, 0.05], id="negative-risk"),
-        pytest.param([0.1, 1.0, True, 0.05], id="bool-n"),
-        pytest.param([0.1, 1.0, 10**400, 0.05], id="huge-n"),
-        pytest.param([0.1, 10**400, 1000, 0.05], id="huge-kl"),
-    ],
-)
-def test_governed_loop_halts_on_raised_step_before_any_receipt(package, args):
-    chain = package.run_governed_loop([{"formula_name": "pac_bayes_mcallester", "args": args}])
-    assert chain["halted"] is True
-    assert "raised" in chain["halt_reason"]
-    assert "pac_bayes_mcallester" in chain["halt_reason"]
+# (args, exact fragment of the formula's own ValueError message, id). Each case
+# must halt on the formula's fail-closed ValueError, and the halt reason must
+# carry that message. "raised" in the halt reason does not discriminate the
+# domain fix: with the fca9707 formula, huge-n and huge-kl halt the loop through
+# a leaked OverflowError, and under this composer negative-risk halts because
+# the composer's output check rejects the fca9707 formula's negative bound
+# inside the same try. Both start with the same prefix, so only the message
+# after it tells them apart from the fix (pinned below in
+# FCA9707_HALTS_THAT_SATISFIED_THE_FORMER_CHECK).
+LOOP_HALT_PREFIX = "step 0 (pac_bayes_mcallester) raised: "
+LOOP_HALT_CASES = [
+    pytest.param([0.1, NAN, 1000, 0.05], "kl must be finite", id="nan-kl"),
+    pytest.param([-5.0, 1.0, 1000, 0.05], "empirical_risk must be in [0,1]", id="negative-risk"),
+    pytest.param([0.1, 1.0, True, 0.05], "n must be a real number", id="bool-n"),
+    pytest.param([0.1, 1.0, 10**400, 0.05], "n is too large for float arithmetic", id="huge-n"),
+    pytest.param([0.1, 10**400, 1000, 0.05], "kl is too large for float arithmetic", id="huge-kl"),
+]
+
+
+def _run_single_pac_step(package, args):
+    return package.run_governed_loop([{"formula_name": "pac_bayes_mcallester", "args": args}])
+
+
+def _registered_formula_value_error(package, args):
+    # The registered formula's own ValueError message for args, or None when it
+    # returns a value or raises anything else: a leaked OverflowError is not a
+    # fail-closed domain error.
+    try:
+        package.REGISTRY["pac_bayes_mcallester"](*args)
+    except ValueError as exc:
+        return str(exc)
+    except Exception:
+        return None
+    return None
+
+
+def _assert_loop_halts_on_the_formula_value_error(package, args, fragment):
+    chain = _run_single_pac_step(package, args)
+    reason = chain["halt_reason"]
+    assert chain["halted"] is True, reason
+    assert isinstance(reason, str) and reason.startswith(LOOP_HALT_PREFIX), reason
+    # The formula's own message follows the prefix. A leaked OverflowError or
+    # the composer's output-validation error carries a different message.
+    assert reason[len(LOOP_HALT_PREFIX):].startswith(fragment), reason
+    own_message = _registered_formula_value_error(package, args)
+    assert own_message is not None, reason
+    assert reason == LOOP_HALT_PREFIX + own_message
     assert chain["receipts"] == []
     assert chain["lambda_aggregate"] == 0.0
     assert chain["root_hash"] == package.GENESIS
     assert chain["replay_ok"] is True
 
 
+@PACKAGE_PARAMS
+@pytest.mark.parametrize("args,fragment", LOOP_HALT_CASES)
+def test_governed_loop_halts_on_raised_step_before_any_receipt(package, args, fragment):
+    _assert_loop_halts_on_the_formula_value_error(package, args, fragment)
+
+
+def _fca9707_pac_bayes_mcallester(empirical_risk, kl, n, delta):
+    # The body of pac_bayes_mcallester at fca9707 (before the domain fix), kept
+    # only as a mutant for the discrimination guards below.
+    if n <= 0:
+        raise ValueError("n must be positive")
+    if not (0.0 < delta < 1.0):
+        raise ValueError("delta must be in (0,1)")
+    if kl < 0.0:
+        raise ValueError("KL divergence must be >= 0")
+    complexity = (kl + math.log(2.0 * math.sqrt(n) / delta)) / (2.0 * n)
+    return empirical_risk + math.sqrt(max(0.0, complexity))
+
+
+@PACKAGE_PARAMS
+@pytest.mark.parametrize("args,fragment", LOOP_HALT_CASES)
+def test_loop_halt_cases_reject_the_fca9707_formula(package, monkeypatch, args, fragment):
+    # Discrimination guard: with the pre-fix formula registered, the shared
+    # loop-halt assertion fails for every case, so none of them is a
+    # regression pin.
+    monkeypatch.setitem(package.REGISTRY, "pac_bayes_mcallester", _fca9707_pac_bayes_mcallester)
+    with pytest.raises(AssertionError):
+        _assert_loop_halts_on_the_formula_value_error(package, args, fragment)
+
+
+# Halt reasons the fca9707 formula produces under this composer for the cases
+# the former check ("raised" and the formula name in the halt reason, no
+# receipt) accepted. None carries the formula's own ValueError message.
+FCA9707_HALTS_THAT_SATISFIED_THE_FORMER_CHECK = {
+    "negative-risk": LOOP_HALT_PREFIX + "pac_bayes_mcallester bound must be a finite nonnegative real number",
+    "huge-n": LOOP_HALT_PREFIX + "int too large to convert to float",
+    "huge-kl": LOOP_HALT_PREFIX + "int too large to convert to float",
+}
+
+
+@PACKAGE_PARAMS
+def test_former_raised_check_accepted_these_fca9707_halts(package, monkeypatch):
+    # Why the shared assertion checks the message: the assertions this file
+    # used before pass for the pre-fix formula in exactly these cases.
+    monkeypatch.setitem(package.REGISTRY, "pac_bayes_mcallester", _fca9707_pac_bayes_mcallester)
+    accepted = {}
+    for case in LOOP_HALT_CASES:
+        args, _fragment = case.values
+        chain = _run_single_pac_step(package, args)
+        if (
+            chain["halted"] is True
+            and "raised" in chain["halt_reason"]
+            and "pac_bayes_mcallester" in chain["halt_reason"]
+            and chain["receipts"] == []
+            and chain["lambda_aggregate"] == 0.0
+            and chain["root_hash"] == package.GENESIS
+            and chain["replay_ok"] is True
+        ):
+            accepted[case.id] = chain["halt_reason"]
+    assert accepted == FCA9707_HALTS_THAT_SATISFIED_THE_FORMER_CHECK
+
+
+def test_only_labelled_rejection_rows_pass_on_the_fca9707_formula():
+    # Discrimination guard: exactly the REJECTED_REGRESSION_PINS rows already
+    # held at fca9707; every other row needs the domain fix.
+    satisfied = set()
+    for args, fragment, case_id in REJECTED:
+        try:
+            _fca9707_pac_bayes_mcallester(*args)
+        except ValueError as exc:
+            if re.search(re.escape(fragment), str(exc)):
+                satisfied.add(case_id)
+        except Exception:
+            pass
+    assert satisfied == REJECTED_REGRESSION_PINS
+
+
+# REGRESSION PIN: fca9707 already scored this valid bound 1 - b; not a fix proof.
 @PACKAGE_PARAMS
 def test_governed_loop_valid_step_scalar_is_one_minus_the_bound(package):
     chain = package.run_governed_loop(
@@ -292,6 +409,8 @@ def test_governed_loop_valid_step_scalar_is_one_minus_the_bound(package):
     assert chain["replay_ok"] is True
 
 
+# HARNESS check, not a behaviour claim: the composer and registry under test
+# belong to the package copy, so the REGISTRY monkeypatches above reach it.
 @PACKAGE_PARAMS
 def test_composer_and_registry_belong_to_the_package_copy(package):
     composer = importlib.import_module(f"{package.__name__}._composer")
@@ -354,6 +473,8 @@ def _halt_calls(package, monkeypatch, with_prefix):
 
 @PACKAGE_PARAMS
 @pytest.mark.parametrize("with_prefix", [False, True], ids=["first-step", "accepted-prefix"])
+# bound=1.0 is a REGRESSION PIN: fca9707 already scored it 0.0 and halted on
+# axis_floor with this exact receipt. The larger bounds prove the fix.
 @pytest.mark.parametrize("bound", [1.0, math.nextafter(1.0, INF), 2.0, sys.float_info.max, 10**400])
 def test_vacuous_bound_retains_failed_receipt_and_last_good_state(package, monkeypatch, with_prefix, bound):
     prefix, calls = _halt_calls(package, monkeypatch, with_prefix)
@@ -402,6 +523,7 @@ def test_invalid_pac_output_halts_before_receipt_and_preserves_prefix(package, m
     assert package.verify_chain(chain, calls) is True
 
 
+# REGRESSION PIN: fca9707 already applied this floor tolerance; not a fix proof.
 @PACKAGE_PARAMS
 @pytest.mark.parametrize("bound,halted", [(0.0, False), (0.5, False), (0.5 + 5e-10, False), (0.5 + 2e-9, True)])
 def test_pac_score_respects_existing_axis_floor_tolerance(package, monkeypatch, bound, halted):
@@ -431,6 +553,8 @@ def test_non_pac_conversion_overflow_is_a_governed_halt(package, monkeypatch):
     assert chain["replay_ok"] is True
 
 
+# REGRESSION PIN: fca9707 converted outside the try and already propagated these;
+# this guards that the converted-inside-try fix does not start swallowing them.
 @PACKAGE_PARAMS
 @pytest.mark.parametrize("exception", [KeyboardInterrupt, SystemExit])
 def test_scalar_conversion_does_not_swallow_process_control(package, monkeypatch, exception):
@@ -444,6 +568,8 @@ def test_scalar_conversion_does_not_swallow_process_control(package, monkeypatch
         package.run_governed_loop([{"formula_name": "pac_bayes_mcallester", "args": list(BASELINE_ARGS)}])
 
 
+# REGRESSION PIN apart from the RISK_LIKE 2.0 assertion: fca9707 already
+# produced every other mapping below.
 @PACKAGE_PARAMS
 def test_unrelated_formula_scalar_mappings_are_unchanged(package):
     composer = importlib.import_module(f"{package.__name__}._composer")
