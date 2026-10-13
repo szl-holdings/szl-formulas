@@ -300,12 +300,31 @@ def test_lambda_bounded_and_schur_reject_out_of_range_axes():
 def test_governed_loop_never_feeds_lambda_an_out_of_domain_scalar():
     # _raw_scalar maps every output into [0, 1] (NaN -> 0), so the loop halts
     # on a NaN output instead of raising, and clean runs still replay.
+    # Step 0 must clear the axis floor or the NaN step never runs: the earlier
+    # bekenstein_cascade(1.0, 1.0) returns about 2e26, which now scores 0.0
+    # (a RISK_LIKE value >= 1 is vacuous) and halts the loop at step 0.
+    bekenstein_args = [1e-27, 1.0]
+    risk = F.bekenstein_cascade(*bekenstein_args)
+    assert 0.0 <= risk < 1.0 - F.AXIS_FLOOR
     chain = F.run_governed_loop([
-        {"formula_name": "bekenstein_cascade", "args": [1.0, 1.0]},
+        {"formula_name": "bekenstein_cascade", "args": bekenstein_args},
         {"formula_name": "gleason_quantum_lambda", "args": [[[math.nan]]]},
     ])
     assert chain["halted"] is True
-    assert "axis_floor" in (chain["halt_reason"] or "")
+    # The NaN step (index 1) is the step that halts, so it ran and its scalar
+    # reached the validators and the running lambda without raising.
+    assert chain["halt_reason"] == (
+        "step 1 (gleason_quantum_lambda) HALT on validators ['axis_floor']"
+    )
+    first, nan_step = chain["receipts"]
+    assert first["scalar"] == 1.0 - risk
+    assert all(first["validators"].values())
+    assert nan_step["output_repr"] == "nan"
+    assert nan_step["scalar"] == 0.0
+    assert nan_step["validators"]["drift_bounds"] is True
+    assert nan_step["validators"]["axis_floor"] is False
+    assert chain["root_hash"] == first["receipt_hash"]
+    assert chain["lambda_aggregate"] == F.lambda_aggregate([first["scalar"]])
     assert chain["replay_ok"] is True
     assert 0.0 <= chain["lambda_aggregate"] <= 1.0
 

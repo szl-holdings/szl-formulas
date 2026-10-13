@@ -72,10 +72,13 @@ class ReceiptChain(TypedDict):
 
 
 def _to_scalar(out: Any, formula_name: str = "") -> float:
-    if formula_name == "pac_bayes_mcallester":
-        # The formula keeps its untruncated bound. A vacuous bound (>= 1)
-        # supplies no positive advisory score, regardless of its magnitude.
-        error = "pac_bayes_mcallester bound must be a finite nonnegative real number"
+    if formula_name in RISK_LIKE:
+        # Every RISK_LIKE output is read as a risk bound: larger is worse. The
+        # formula still returns its unclamped value (the receipt keeps its
+        # repr). A vacuous value (>= 1) supplies no positive advisory score,
+        # regardless of its magnitude; anything that is not a finite
+        # nonnegative real raises, so the loop halts before adding a receipt.
+        error = f"{formula_name} bound must be a finite nonnegative real number"
         if isinstance(out, bool) or not isinstance(out, (int, float)):
             raise ValueError(error)
         if out < 0 or (isinstance(out, float) and not math.isfinite(out)):
@@ -83,11 +86,12 @@ def _to_scalar(out: Any, formula_name: str = "") -> float:
         # Compare before conversion so even integers above float range saturate.
         return 0.0 if out >= 1 else 1.0 - out
     if formula_name in STRUCTURAL:
+        # A STRUCTURAL step scores 1.0 for any finite result; a non-finite
+        # float (e.g. reed_solomon_singleton(inf, 1.0)) is not a result.
+        if isinstance(out, float) and not math.isfinite(out):
+            raise ValueError(f"{formula_name} output must be finite, got {out!r}")
         return 1.0
-    base = _raw_scalar(out)
-    if formula_name in RISK_LIKE:
-        return max(0.0, min(1.0, 1.0 - base))
-    return base
+    return _raw_scalar(out)
 
 
 def _raw_scalar(out: Any) -> float:
