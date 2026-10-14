@@ -1,0 +1,46 @@
+{
+  "schema": "szl.hf-kernels/v1",
+  "$comment": "Consumed by .github/workflows/hf-kernel-publish.yml via scripts/szl_kernel_publish.py. This repository is the single source of the Hub kernel repo SZLHOLDINGS/szl-formulas and the only writer of it and of its model-repo twin. Kernel major (version) is the v<major> API channel, not the package version 0.1.0.",
+  "kernels": [
+    {
+      "repo_id": "SZLHOLDINGS/szl-formulas",
+      "name": "szl-formulas",
+      "version": 1,
+      "license": "Apache-2.0",
+      "source_repository": "szl-holdings/szl-formulas",
+      "packages": [
+        { "src": "torch-ext/szl_formulas", "name": "szl_formulas" }
+      ],
+      "card": "hf/kernel-card.md",
+      "license_file": "LICENSE",
+      "extra_files": {
+        "NOTICE": "NOTICE"
+      },
+      "$why_prune_paths": "Hub-only plates seen on kernel main 5cac04af (2026-10-14): OPERATIONAL.json and BENCH.laptop-blackwell.json are 2026-08-29 laptop plates (github_sha 977f344c) that advertise revision=\"main\" with kernels 0.16.1; SZL_SOURCE_BINDING.json is the retired runtime lane's binding (source fca97079), superseded by SZL_KERNEL_SOURCE.json. Kernel v1 39a9fe6f carries none of them.",
+      "prune_paths": [
+        "OPERATIONAL.json",
+        "BENCH.laptop-blackwell.json",
+        "SZL_SOURCE_BINDING.json"
+      ],
+      "python_depends": [],
+      "smoke": "hf/kernel_smoke.py",
+      "model_twin": {
+        "repo_id": "SZLHOLDINGS/szl-formulas",
+        "mode": "pointer",
+        "card": "hf/model-twin-pointer.md",
+        "$why_prune_paths": "Seen on model main 7a8ae79e (2026-10-14). build/ is never loaded by kernels>=0.16 and serves the stale fca97079 package; the plates and binding are the same stale files as on the kernel repo; scripts/ (eval.py, forge.py), tests/ (test_formulas.py) and build.toml are stale code/config copies that differ from GitHub; torch-ext/ and model.joblib stay absent (absent today, kept absent). BOM, receipts, provenance, audit, SECURITY.md, LICENSE, SZL_ESTATE_MANAGED.json and the card art are kept.",
+        "prune_paths": [
+          "build/",
+          "torch-ext/",
+          "scripts/",
+          "tests/",
+          "build.toml",
+          "model.joblib",
+          "OPERATIONAL.json",
+          "BENCH.laptop-blackwell.json",
+          "SZL_SOURCE_BINDING.json"
+        ]
+      }
+    }
+  ]
+}

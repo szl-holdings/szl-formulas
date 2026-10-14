@@ -17,9 +17,7 @@ Software kernel for SZL formula composition. **Not a model. No weights.**
 
 This GitHub tree is the source. The Hub package is the publish mirror: [`kernels/SZLHOLDINGS/szl-formulas`](https://huggingface.co/kernels/SZLHOLDINGS/szl-formulas). Card: [`SZLHOLDINGS/szl-formulas`](https://huggingface.co/SZLHOLDINGS/szl-formulas).
 
-The source-owned [runtime publication workflow](docs/hf-runtime-publication.md)
-binds both Hub distributions to an exact tested GitHub revision and verifies
-their published bytes while retaining curated Hub assets.
+The only writer of both Hub repositories is [`hf-kernel-publish`](.github/workflows/hf-kernel-publish.yml), configured in [`.github/hf-kernels.json`](.github/hf-kernels.json). A published release builds `build/torch-cpu` and `build/torch-universal` from `torch-ext/` at the release commit, pushes them fast-forward to the kernel repo's `main` and `v1` branches with a `SZL_KERNEL_SOURCE.json` binding that names that commit, verifies the result through `get_kernel` in a fresh job, and only then turns the model repository into a pointer card to the kernel repo. A weekly job re-verifies what the Hub serves. Nothing under `build/` is committed here; the tests run against `torch-ext` and both generated variants ([`tests/conftest.py`](tests/conftest.py)).
 
 ## What
 
@@ -27,7 +25,7 @@ Python package under `torch-ext/szl_formulas/`. Formula composer + canonical for
 
 ## What this is NOT
 
-- Hub `model.joblib` is **QUARANTINED** executable serialization. Do not `joblib.load` it. GitHub source is the approved path.
+- `model.joblib` is **QUARANTINED** executable serialization. It is absent from the Hub model repository and `hf-kernel-publish` keeps it pruned. Do not `joblib.load` any copy. GitHub source is the approved path.
 
 - Not trained weights, not a LoRA, not GGUF
 - Not a CUDA/Triton speedup claim (no MEASURED benches in this repo)
@@ -38,8 +36,13 @@ Python package under `torch-ext/szl_formulas/`. Formula composer + canonical for
 Set `SZL_FORMULAS_HF_REVISION` to the immutable **first-class Kernel Hub** commit
 from a verified publication of [`kernels/SZLHOLDINGS/szl-formulas`](https://huggingface.co/kernels/SZLHOLDINGS/szl-formulas). Use the `kernels`
 client version qualified with that publication. The GitHub source commit,
-model-type mirror commit, and Kernel Hub commit are separate identities.
+model-repository commit, and Kernel Hub commit are separate identities.
 An observed head, a branch name, or a successful import does not qualify a release.
+A qualifying revision is a commit of the kernel repo's `v1` branch written by a
+`hf-kernel-publish` run whose `verify` job passed; `SZL_KERNEL_SOURCE.json` at that
+commit names the GitHub source commit. `version=1` (shown on the
+[kernel card](hf/kernel-card.md)) resolves the moving head of that branch, not a
+qualified release.
 
 `trust_remote_code=True` permits execution of the selected repository's Python.
 Review that exact revision, its provenance and publication evidence before enabling it.

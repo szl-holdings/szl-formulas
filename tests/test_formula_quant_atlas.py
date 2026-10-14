@@ -7,6 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
 import szl_formulas as formulas
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,10 +18,7 @@ SOURCE_SHA256 = "c0b6dfee3233097307c518a57c076e5ba3ea9013f34ab454bef92aeddf0f363
 SOURCE_GIT_BLOB_SHA = "600654f89cb062320acae4284cb5220ff881eb3c"
 ERRATUM_SHA256 = "21cd2887daa8d4d0b57723b8e9819ee2f6a7b825ab7c777b559c5058d13ee594"
 ERRATUM_GIT_BLOB_SHA = "d33faf9c29d61c5314dffdcc67f68443ebd13842"
-PACKAGE_ATLASES = (
-    ROOT / "torch-ext" / "szl_formulas" / "formula_atlas.v1.json",
-    ROOT / "build" / "torch-universal" / "szl_formulas" / "formula_atlas.v1.json",
-)
+COPIES = ["torch-ext", "build/torch-cpu", "build/torch-universal"]  # see conftest.py
 
 
 def test_atlas_rebuild_is_byte_deterministic() -> None:
@@ -72,9 +70,10 @@ def test_attributed_source_and_counts_are_exact() -> None:
     assert sum(atlas["summary"]["quant_domain_counts"].values()) == 30
 
 
-def test_packaged_atlases_match_canonical_bytes() -> None:
-    for packaged in PACKAGE_ATLASES:
-        assert packaged.read_bytes() == ATLAS.read_bytes()
+@pytest.mark.parametrize("copy", COPIES)
+def test_packaged_atlases_match_canonical_bytes(copy, shipped_root) -> None:
+    packaged = shipped_root(copy) / "szl_formulas" / "formula_atlas.v1.json"
+    assert packaged.read_bytes() == ATLAS.read_bytes()
 
 
 def test_builder_rejects_vendored_source_drift() -> None:

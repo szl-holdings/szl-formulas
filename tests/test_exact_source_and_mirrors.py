@@ -1,23 +1,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CPU_WORKFLOW = ROOT / ".github" / "workflows" / "cpu-contract.yml"
 SOURCE_PACKAGE = ROOT / "torch-ext" / "szl_formulas"
-MIRROR_PACKAGE = ROOT / "build" / "torch-universal" / "szl_formulas"
-PACKAGE_FILES = (
-    "__init__.py",
-    "_aggregators.py",
-    "_composer.py",
-    "_formulas.py",
-    "atlas.py",
-    "formula_atlas.v1.json",
-    "metadata.json",
-)
 
 
 def test_pr_qualification_checks_out_exact_owner_head() -> None:
@@ -30,19 +18,6 @@ def test_pr_qualification_checks_out_exact_owner_head() -> None:
     assert "refs/pull" not in text
     assert "merge_commit_sha" not in text
     assert "pull_request_target" not in text
-
-
-def test_checked_in_universal_mirror_matches_canonical_source() -> None:
-    for name in PACKAGE_FILES:
-        assert (MIRROR_PACKAGE / name).read_bytes() == (SOURCE_PACKAGE / name).read_bytes()
-    completed = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "sync_source_mirrors.py"), "--check"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert completed.returncode == 0, completed.stderr
 
 
 def test_metadata_refuses_a_frozen_test_count() -> None:

@@ -10,9 +10,9 @@ risk, and raised OverflowError (not ValueError) for ``n=10**400`` or an int
 than for the valid baseline (0.836...), and 1.0 for ``empirical_risk=-5.0``,
 without halting.
 
-Every case runs through BOTH package copies: ``torch-ext`` (what this repo
-imports) and ``build/torch-universal`` (what the Hub loads), following the
-IMPLS pattern of tests/test_lambda_v1_conformance.py. Stdlib + pytest only.
+Every case runs through every shipped package copy (see conftest.py):
+``torch-ext`` (what this repo imports) and the publisher's ``build/torch-cpu``
+and ``build/torch-universal`` (what the Hub loads). Stdlib + pytest only.
 
 The float expression for a valid input is unchanged, so every input the new
 domain accepts evaluates to the same float as before; only the domain moved.
@@ -48,16 +48,33 @@ def _load_package(name: str, path: Path):
     return module
 
 
-PACKAGES = {
-    label: _load_package(f"_pac_bayes_test_{index}", ROOT / label / "szl_formulas")
-    for index, label in enumerate(("torch-ext", "build/torch-universal"))
-}
-IMPLS = {
-    label: importlib.import_module(f"{package.__name__}._formulas")
-    for label, package in PACKAGES.items()
-}
-IMPL_PARAMS = pytest.mark.parametrize("impl", list(IMPLS.values()), ids=list(IMPLS))
-PACKAGE_PARAMS = pytest.mark.parametrize("package", list(PACKAGES.values()), ids=list(PACKAGES))
+COPIES = ["torch-ext", "build/torch-cpu", "build/torch-universal"]  # see conftest.py
+_PACKAGES: dict = {}
+
+
+def _package(shipped_root, copy: str):
+    if copy not in _PACKAGES:
+        _PACKAGES[copy] = _load_package(f"_pac_bayes_test_{COPIES.index(copy)}",
+                                        shipped_root(copy) / "szl_formulas")
+    return _PACKAGES[copy]
+
+
+def _impl(shipped_root, copy: str):
+    return importlib.import_module(f"{_package(shipped_root, copy).__name__}._formulas")
+
+
+@pytest.fixture
+def package(request, shipped_root):
+    return _package(shipped_root, request.param)
+
+
+@pytest.fixture
+def impl(request, shipped_root):
+    return _impl(shipped_root, request.param)
+
+
+IMPL_PARAMS = pytest.mark.parametrize("impl", COPIES, indirect=True)
+PACKAGE_PARAMS = pytest.mark.parametrize("package", COPIES, indirect=True)
 
 NAN = float("nan")
 INF = float("inf")
@@ -256,9 +273,10 @@ def test_every_forge_generator_corner_and_sample_is_accepted(impl):
         assert out - risk > math.sqrt(math.log(2.0) / (2.0 * n)), (risk, kl, n, delta, out)
 
 
-def test_both_package_copies_agree_bit_for_bit_on_forge_samples():
+def test_every_package_copy_agrees_bit_for_bit_on_forge_samples(shipped_root):
+    impls = {copy: _impl(shipped_root, copy) for copy in COPIES}
     for args in _forge_corners() + _forge_samples():
-        outs = {label: impl.pac_bayes_mcallester(*args) for label, impl in IMPLS.items()}
+        outs = {label: impl.pac_bayes_mcallester(*args) for label, impl in impls.items()}
         assert len({out.hex() for out in outs.values()}) == 1, (args, outs)
 
 
