@@ -16,8 +16,9 @@ return +inf, ``bekenstein_cascade(nan, 1.0)`` returns NaN,
 returns +inf, and ``reed_solomon_singleton(inf, 1.0)`` and
 ``reed_solomon_singleton(Decimal("Infinity"), 1)`` return a non-finite value.
 
-Every case runs through BOTH package copies (torch-ext and
-build/torch-universal). Stdlib + pytest only. Λ remains Conjecture 1 (open).
+Every case runs through every shipped package copy (see conftest.py): torch-ext
+and the publisher's build/torch-cpu and build/torch-universal. Stdlib + pytest
+only. Λ remains Conjecture 1 (open).
 """
 from __future__ import annotations
 
@@ -44,11 +45,21 @@ def _load_package(name: str, path: Path):
     return module
 
 
-PACKAGES = {
-    label: _load_package(f"_composer_risk_test_{index}", ROOT / label / "szl_formulas")
-    for index, label in enumerate(("torch-ext", "build/torch-universal"))
-}
-PACKAGE_PARAMS = pytest.mark.parametrize("package", list(PACKAGES.values()), ids=list(PACKAGES))
+COPIES = ["torch-ext", "build/torch-cpu", "build/torch-universal"]  # see conftest.py
+_PACKAGES: dict = {}
+
+
+@pytest.fixture
+def package(request, shipped_root):
+    """One shipped copy of the package, loaded once under an isolated name."""
+    copy = request.param
+    if copy not in _PACKAGES:
+        _PACKAGES[copy] = _load_package(f"_composer_risk_test_{COPIES.index(copy)}",
+                                        shipped_root(copy) / "szl_formulas")
+    return _PACKAGES[copy]
+
+
+PACKAGE_PARAMS = pytest.mark.parametrize("package", COPIES, indirect=True)
 
 INF = float("inf")
 NAN = float("nan")

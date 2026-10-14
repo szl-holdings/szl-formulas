@@ -6,3 +6,6 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+# hf-kernel-publish local outputs
+dist/
+receipts/

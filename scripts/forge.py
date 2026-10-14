@@ -11,8 +11,8 @@ A sample of traces is re-audited by replaying the kernel call and asserting the
 recorded output matches. Seeded, receipted, reproducible."""
 import json, os, random, sys, time, hashlib, platform, math
 _here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if os.path.isdir(os.path.join(_here, "build", "torch-universal")):
-    sys.path.insert(0, os.path.join(_here, "build", "torch-universal"))  # in-repo run
+if os.path.isdir(os.path.join(_here, "torch-ext", "szl_formulas")):
+    sys.path.insert(0, os.path.join(_here, "torch-ext"))  # in-repo run (build/ is generated, not committed)
 else:
     sys.path.insert(0, "/tmp/kernel-probe/szl-formulas/build/torch-universal")  # forge-dev run
 import szl_formulas as fx

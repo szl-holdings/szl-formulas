@@ -154,7 +154,7 @@ def exact_decimal(value) -> Decimal:
 # Kernel plumbing: validation is the kernel's, by construction                 #
 # --------------------------------------------------------------------------- #
 def _default_impl():
-    """The torch-ext kernel copy; tests pass the build/torch-universal copy explicitly."""
+    """The torch-ext kernel copy; tests pass the generated build/<variant> copies explicitly."""
     torch_ext = str(ROOT / "torch-ext")
     if torch_ext not in sys.path:
         sys.path.insert(0, torch_ext)

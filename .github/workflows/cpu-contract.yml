@@ -58,7 +58,6 @@ jobs:
           python -I -m py_compile scripts/eval.py tests/test_no_unsafe_serialization.py
           python -I tests/test_no_unsafe_serialization.py
           python -I scripts/eval.py
-          python scripts/sync_source_mirrors.py --check
           git diff --check
 
       - name: CPU kernel smoke
