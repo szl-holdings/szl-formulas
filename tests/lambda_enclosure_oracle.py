@@ -50,11 +50,17 @@ Contract
   ``copy_abs``, ``Fraction(Decimal)``). Results are identical under a hostile
   global context (``prec=1``, every signal trapped) and no flags are left on
   it; the tests pin both.
-* ``float_error_bound`` is exact ``Fraction`` arithmetic with ONE labelled
-  ASSUMPTION (``LIBM_ULP_ASSUMPTION``): the platform libm ``math.log`` and
-  ``math.exp`` are each within 4 ulp of the exact result. IEEE 754 does not
-  mandate this; it is not verified here. A platform that breaks it makes the
-  containment tests fail loudly instead of passing silently.
+* ``float_error_bound`` uses exact ``Fraction`` arithmetic under explicit
+  platform ASSUMPTIONS: binary64 round-to-nearest-even with gradual underflow;
+  ``math.log`` and ``math.exp`` each within 4 ulp (``LIBM_ULP_ASSUMPTION``); and
+  ``math.fsum`` at most one finite neighbouring binary64 value from the
+  correctly rounded exact sum of its binary64 inputs (``FSUM_NEIGHBOR_ASSUMPTION``).
+  The last premise models Python's documented possible one-LSB deviation; it
+  is an assumption, not a universal guarantee for every Python/platform/mode.
+  The error band includes that extra spacing in either direction. These
+  premises are not established by sample probes or a passing test suite;
+  certificates are conditional on them. Unsupported platforms must not claim
+  certification. Non-finite outputs fail closed.
 
 Stdlib only (decimal, fractions, math, struct, sys, pathlib, typing). No
 mpmath, no numpy, no network, no I/O.
@@ -95,6 +101,12 @@ CHECK_PREC = 90
 # rounding for them. glibc documents <= 1 ulp for both on x86_64; 4 is a margin.
 LIBM_ULP_ASSUMPTION = 4
 
+# ASSUMPTION: fsum is RN(exact sum), or one finite binary64 neighbour of it.
+# Python documents a possible low-bit deviation from extended-precision double
+# rounding, not unconditional correct rounding. This bounded model is explicit
+# and conditional; check_platform_identities() cannot establish it globally.
+FSUM_NEIGHBOR_ASSUMPTION = 1
+
 U = Fraction(1, 2**53)  # binary64 unit roundoff under round-to-nearest
 TINY = Fraction(1, 2**1074)  # smallest positive subnormal = ulp of every subnormal
 ZERO = Decimal(0)
@@ -118,11 +130,16 @@ ASSUMPTIONS: Tuple[str, ...] = (
     "(CPython decimal documentation); each result is widened by one ulp each way.",
     f"ASSUMPTION (not IEEE-754 mandated, not verified here): platform libm math.log and "
     f"math.exp are each within {LIBM_ULP_ASSUMPTION} ulp of the exact result.",
-    "math.fsum is correctly rounded (CPython documentation).",
+    "ASSUMPTION: binary64 round-to-nearest-even arithmetic with gradual underflow; "
+    "no overflow or non-finite intermediate/result is covered.",
+    f"ASSUMPTION (not universally verified): math.fsum is at most "
+    f"{FSUM_NEIGHBOR_ASSUMPTION} finite neighbouring binary64 value from the correctly "
+    "rounded exact sum of its binary64 inputs, in either direction. This models Python's "
+    "documented possible one-LSB deviation; identity probes do not prove this premise.",
     "math.log(1.0) == 0.0 and math.exp(0.0) == 1.0 exactly (C Annex F); see "
     "check_platform_identities().",
-    "Products w*ln(x) and the exponent sum are modelled with round-to-nearest relative "
-    "error u = 2**-53 plus a 2**-1074 absolute floor per operation for subnormal results.",
+    "Products w*ln(x) and the reference final rounding use relative error u = 2**-53 "
+    "plus a 2**-1074 absolute floor; fsum also receives a separate one-neighbour allowance.",
 )
 
 # Trap everything that would silently reduce rigor; a trap means a bug to investigate.
@@ -295,7 +312,7 @@ def enclose_nested(
 
 
 # --------------------------------------------------------------------------- #
-# Float error model: exact rationals, one labelled libm assumption              #
+# Float error model: exact rationals, explicit libm and summation assumptions   #
 # --------------------------------------------------------------------------- #
 def abs_ln_upper(x, prec: int = 30) -> Fraction:
     """Rigorous rational upper bound on ``|ln x|`` for ``0 < x <= 1`` (never ``math.log``).
@@ -313,6 +330,20 @@ def abs_ln_upper(x, prec: int = 30) -> Fraction:
     return Fraction(d.ln(he).copy_abs().next_plus(he))
 
 
+def _fsum_error_bound(magnitude: Fraction) -> Fraction:
+    """Conditional error bound for fsum when its exact input sum P has |P| <= magnitude.
+
+    Let r = RN(P). Ordinary rounding gives R = u*magnitude + TINY and
+    |r| <= magnitude + R. Either finite binary64 neighbour of r is within
+    2*u*|r| + TINY, including zero, subnormals, and the wider side of a
+    power-of-two boundary. Thus R + L covers one additional neighbouring
+    result under FSUM_NEIGHBOR_ASSUMPTION. No platform probe proves the premise.
+    """
+    rounding = U * magnitude + TINY
+    neighbour = FSUM_NEIGHBOR_ASSUMPTION * (2 * U * (magnitude + rounding) + TINY)
+    return rounding + neighbour
+
+
 def float_error_bound(
     axes, weights, hi, *, libm_ulps: int = LIBM_ULP_ASSUMPTION
 ) -> Fraction:
@@ -322,7 +353,8 @@ def float_error_bound(
 
     * ``log``: |error| <= ``libm_ulps`` ulp <= ``2*libm_ulps*u`` relative (ASSUMPTION);
     * ``w * log(x)``: round-to-nearest, relative ``u`` plus a ``2**-1074`` floor;
-    * ``fsum``: correctly rounded, relative ``u`` on the perturbed sum plus a floor;
+    * ``fsum``: ASSUMPTION of at most one finite binary64 neighbour of the
+      correctly rounded perturbed sum, in either direction; budget R + L below;
     * ``exp``: |error| <= ``libm_ulps`` ulp, i.e. ``2*libm_ulps*u`` relative for a
       normal result plus ``libm_ulps * 2**-1074`` for a subnormal one (ASSUMPTION);
     * ``|e^(S+d) - e^S| <= e^S (d + d²)`` for ``0 <= d <= 1``, with ``e^S <= hi``.
@@ -331,6 +363,11 @@ def float_error_bound(
     the bound tight for subnormal results. ``weights=None`` means the kernel's
     binary64 uniform weights. A zero axis gives exactly ``Fraction(0)`` because
     the kernel returns ``0.0`` without any float arithmetic.
+
+    Conditional on binary64 round-to-nearest-even with gradual underflow and
+    the labelled libm/fsum premises. Sample identity checks do not establish
+    these premises for all inputs or implementations. Overflow/non-finite
+    intermediate values, including an infinite neighbour, are outside this model.
     """
     ws = kernel_weights(axes, weights)
     if any(x == 0 for x in axes):
@@ -342,8 +379,10 @@ def float_error_bound(
     # A bounds |S| = Σ wᵢ |ln xᵢ| (all terms share the sign of ln xᵢ <= 0).
     a_sum = sum((Fraction(w) * abs_ln_upper(x) for x, w in zip(axes, ws)), Fraction(0))
     g = (1 + rel_log) * (1 + U) - 1  # log error then product rounding, per term, relative
-    d_s = a_sum * g + k * TINY  # per-term relative errors + subnormal/underflow floors
-    d_s = d_s + U * a_sum * (1 + g) + TINY  # correctly rounded fsum of the perturbed terms
+    term_error = a_sum * g + k * TINY  # E: log/product errors plus absolute floors
+    magnitude = a_sum + term_error  # B: |exact sum of rounded terms| <= A + E
+    # d = E + R + L. Carry k*TINY into B before both final rounding allowances.
+    d_s = term_error + _fsum_error_bound(magnitude)
     if d_s > 1:
         raise OracleInconsistency("error model needs |S_float - S| <= 1; impossible for v1 inputs")
     e_ds = 1 + d_s + d_s * d_s  # e^t <= 1 + t + t² for 0 <= t <= 1
@@ -352,7 +391,7 @@ def float_error_bound(
 
 
 def check_platform_identities() -> Dict[str, bool]:
-    """Exact identities the error model relies on for ``x == 1`` terms (C Annex F)."""
+    """Sample identity checks, NOT qualification of the global libm/fsum assumptions."""
     return {
         "log_1_is_zero": math.log(1.0) == 0.0,
         "exp_0_is_one": math.exp(0.0) == 1.0,
@@ -446,9 +485,11 @@ def certify(
     ``[lo, hi]`` in ulps), ``tau``, ``threshold_relation`` (``SEPARATED_ABOVE`` /
     ``SEPARATED_BELOW`` / ``UNKNOWN`` / None), ``assumptions`` (list of strings),
     ``status`` in {``ENCLOSED``, ``VIOLATION``, ``UNKNOWN``}: VIOLATION when the
-    float is outside the error band (kernel defect or a libm violating the
-    labelled assumption), UNKNOWN when ``tau`` is given and the relation is
-    numerically undecidable, ENCLOSED otherwise.
+    float is outside the error band (kernel defect or a violation of the
+    labelled assumptions), UNKNOWN when ``tau`` is given and the relation is
+    numerically undecidable, ENCLOSED otherwise. This certificate is conditional
+    on the binary64, libm and one-neighbour fsum premises, not a global platform
+    qualification. ``fsum_neighbor_assumption`` records the active allowance.
 
     Input violations raise the kernel's ``LambdaV1Error`` (same code). A failed
     prec-60/90 nesting check raises ``OracleInconsistency``; nothing falls back.
@@ -458,6 +499,8 @@ def certify(
     impl, ws = validate(axes, weights, impl=impl)
     lo, hi, lo2, hi2 = enclose_nested(axes, weights, prec, check_prec, impl=impl)
     value = impl.lambda_aggregate(axes, weights)
+    if not math.isfinite(value):
+        raise OracleInconsistency("non-finite kernel result is outside the error model")
     eps = float_error_bound(axes, ws, hi, libm_ulps=libm_ulps)
     v = Fraction(value)
     contained = Fraction(lo) - eps <= v <= Fraction(hi) + eps
@@ -481,6 +524,7 @@ def certify(
         "float_value": value,
         "eps": _upper_str(eps),
         "libm_ulp_assumption": libm_ulps,
+        "fsum_neighbor_assumption": FSUM_NEIGHBOR_ASSUMPTION,
         "contained": bool(contained),
         "ulp_outside": float(ulp_distance(value, lo, hi)),
         "tau": None if tau is None else repr(tau),

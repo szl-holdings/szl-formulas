@@ -4,8 +4,9 @@
 
 ``tests/lambda_enclosure_oracle.py`` brackets the exact real ``∏ xᵢ^{wᵢ}`` of
 the exact binary64 inputs with stdlib ``decimal`` directed rounding and bounds
-the kernel's float error in exact ``Fraction`` arithmetic under ONE labelled
-libm assumption. Every check runs through every shipped copy (see conftest.py):
+the kernel's float error in exact ``Fraction`` arithmetic under explicit
+binary64, libm and one-neighbour fsum assumptions. Kernel checks run through
+every shipped copy (see conftest.py):
 ``torch-ext`` (what this repo imports) and the publisher's ``build/torch-cpu``
 and ``build/torch-universal`` (what the Hub loads), the same ``impl`` fixture
 as ``test_lambda_v1_conformance.py``.
@@ -182,6 +183,166 @@ def test_oracle_states_its_scope_honestly():
     assert O.LIBM_ULP_ASSUMPTION == 4
     assert any("not IEEE-754 mandated" in a for a in O.ASSUMPTIONS)
     assert "theorem" not in doc.lower()  # Λ uniqueness is a conjecture, never a theorem here
+
+
+def test_fsum_assumption_is_explicit_conditional_and_reported():
+    assert O.FSUM_NEIGHBOR_ASSUMPTION == 1
+    assumptions = " ".join(O.ASSUMPTIONS)
+    assert "round-to-nearest-even" in assumptions and "gradual underflow" in assumptions
+    assert "1 finite neighbouring binary64 value" in assumptions
+    assert "either direction" in assumptions and "not universally verified" in assumptions
+    assert "identity probes do not prove" in assumptions
+    assert "math.fsum is correctly rounded (CPython documentation)" not in assumptions
+    assert "conditional" in O.__doc__ and "conditional" in O.certify.__doc__
+    assert "NOT qualification" in O.check_platform_identities.__doc__
+
+
+# --------------------------------------------------------------------------- #
+# Independent exact-rational fsum reference and extra-rounding regressions       #
+# --------------------------------------------------------------------------- #
+def _pow2(exponent):
+    return Fraction(2**exponent) if exponent >= 0 else Fraction(1, 2**-exponent)
+
+
+def _round_binary_even(value, precision=53, minimum_exponent=-1074):
+    """Integer-only nearest-even reference; never uses fsum or float rounding.
+
+    The default grid is finite binary64, including subnormals; tests stay below
+    overflow. precision=64 models an extended significand for a double-rounding
+    witness, not the implementation of any platform's fsum algorithm.
+    """
+    value = Fraction(value)
+    if not value:
+        return Fraction(0)
+    sign = -1 if value < 0 else 1
+    value = abs(value)
+    exponent = value.numerator.bit_length() - value.denominator.bit_length()
+    if value < _pow2(exponent):
+        exponent -= 1
+    quantum = _pow2(max(exponent - precision + 1, minimum_exponent))
+    scaled = value / quantum
+    integer, remainder = divmod(scaled.numerator, scaled.denominator)
+    twice = 2 * remainder
+    if twice > scaled.denominator or (twice == scaled.denominator and integer % 2):
+        integer += 1
+    return sign * integer * quantum
+
+
+@pytest.mark.parametrize("exact, expected", [
+    (Fraction(0), "0x0.0p+0"),
+    (Fraction(1) + _pow2(-53), "0x1.0000000000000p+0"),
+    (Fraction(1) + 3 * _pow2(-53), "0x1.0000000000002p+0"),
+    (Fraction(1) - _pow2(-54), "0x1.0000000000000p+0"),
+    (Fraction(1) - 3 * _pow2(-54), "0x1.ffffffffffffep-1"),
+    (_pow2(-1075), "0x0.0p+0"),
+    (3 * _pow2(-1075), "0x0.0000000000002p-1022"),
+    (_pow2(-1022) - _pow2(-1075), "0x1.0000000000000p-1022"),
+])
+def test_integer_rounding_reference_ties_and_subnormal_transition(exact, expected):
+    want = Fraction(float.fromhex(expected))
+    assert _round_binary_even(exact) == want
+    assert _round_binary_even(-exact) == -want
+
+
+def _fsum_reference_cases():
+    tiny = float.fromhex("0x0.0000000000001p-1022")
+    cases = [[0.0], [tiny], [tiny, tiny], [1.0, -1.0],
+             [1.0, 2.0**-53, 2.0**-65], [-1.0, -2.0**-53, -2.0**-65],
+             [-744.0, -2.0**-44], [-0.125, -0.25]]
+    for exponent in (-1022, -100, -1, 0, 1, 9):
+        boundary = 2.0**exponent
+        for value in (math.nextafter(boundary, 0.0), boundary,
+                      math.nextafter(boundary, math.inf)):
+            cases.extend([[value], [-value]])
+    return cases
+
+
+@pytest.mark.parametrize("terms", _fsum_reference_cases())
+def test_fsum_allowance_covers_both_neighbours_of_independent_reference(terms):
+    exact = sum((Fraction(t) for t in terms), Fraction(0))
+    reference = _round_binary_even(exact)
+    rounded = float(reference)
+    assert math.isfinite(rounded) and Fraction(rounded) == reference
+    allowance = O._fsum_error_bound(abs(exact))
+    for direction in (-math.inf, math.inf):
+        adjacent = math.nextafter(rounded, direction)
+        assert math.isfinite(adjacent)
+        assert abs(Fraction(adjacent) - exact) <= allowance
+
+
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_fsum_double_rounding_witness_needs_the_extra_allowance(sign):
+    terms = [sign * t for t in (1.0, 2.0**-53, 2.0**-65)]
+    exact = sum((Fraction(t) for t in terms), Fraction(0))
+    once = _round_binary_even(exact)
+    twice = _round_binary_even(_round_binary_even(exact, precision=64))
+    assert once == sign * Fraction(float.fromhex("0x1.0000000000001p+0"))
+    assert twice == sign
+    actual_error = abs(twice - exact)
+    old_allowance = _pow2(-53) * abs(exact) + _pow2(-1074)
+    assert actual_error > old_allowance  # local host fsum correctness cannot hide the gap
+    assert actual_error <= O._fsum_error_bound(abs(exact))
+
+
+def _old_output_allowance(a_sum, k, hi):
+    """Original PR22 model, independently retained only to discriminate regressions."""
+    u, tiny = _pow2(-53), _pow2(-1074)
+    g = (1 + 8 * u) * (1 + u) - 1
+    delta = a_sum * g + k * tiny + u * a_sum * (1 + g) + tiny
+    return hi * ((1 + 8 * u) * (1 + delta + delta * delta) - 1) + 4 * tiny
+
+
+def test_fsum_extra_allowance_covers_full_exponent_budget(monkeypatch):
+    """Admissible aggregate-error assignment, not a claim of realizable Lambda inputs."""
+    u, tiny = _pow2(-53), _pow2(-1074)
+    g = (1 + 8 * u) * (1 + u) - 1
+    z = 1 + u + _pow2(-65)
+    a_sum = (z + 3 * tiny) / (1 - g)
+    term_error = a_sum * g + 3 * tiny
+    assert a_sum - term_error == z
+    # Exact target -A, exact rounded-term sum -z, and permitted fsum result -1.
+    synthetic_error = a_sum - 1
+    old_delta = term_error + u * a_sum * (1 + g) + tiny
+    assert old_delta < synthetic_error
+    # Exercise the actual bound's complete budget without sharing its implementation.
+    monkeypatch.setattr(O, "abs_ln_upper", lambda x: a_sum)
+    eps = O.float_error_bound([0.5] * 3, [0.25, 0.25, 0.5], Fraction(1))
+    needed = (1 + 8 * u) * (1 + synthetic_error + synthetic_error**2) - 1 + 4 * tiny
+    assert _old_output_allowance(a_sum, 3, Fraction(1)) < needed <= eps
+
+
+@IMPL_PARAMS
+@pytest.mark.parametrize("tau", [
+    float.fromhex("0x1.0000000000008p-1"),
+    float.fromhex("0x1.ffffffffffff0p-2"),
+])
+def test_fsum_extra_allowance_changes_near_threshold_to_unknown(impl, tau):
+    axes, weights = [0.5, 0.5], [0.5, 0.5]
+    impl._lambda_v1_validate(axes, weights)
+    exact = Fraction(1, 2)  # analytic exact Lambda; an independent, trusted enclosure
+    eps = O.float_error_bound(axes, weights, exact)
+    a_sum = _abs_ln_reference_upper(0.5)
+    old_eps = _old_output_allowance(a_sum, 2, exact)
+    assert O.classify(exact, exact, old_eps, tau) in (O.SEPARATED_ABOVE, O.SEPARATED_BELOW)
+    assert O.classify(exact, exact, eps, tau) == O.UNKNOWN
+    report = O.certify(axes, weights, tau, impl=impl)
+    assert report["status"] == report["threshold_relation"] == O.UNKNOWN
+    assert report["contained"] is True and report["fsum_neighbor_assumption"] == 1
+
+
+@IMPL_PARAMS
+def test_expanded_fsum_band_still_reports_far_outside_value_as_violation(impl, monkeypatch):
+    monkeypatch.setattr(impl, "lambda_aggregate", lambda axes, weights=None: 0.75)
+    report = O.certify([0.5, 0.5], [0.5, 0.5], impl=impl)
+    assert report["status"] == O.VIOLATION and report["contained"] is False
+
+
+@IMPL_PARAMS
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_nonfinite_kernel_result_fails_closed(impl, monkeypatch, value):
+    monkeypatch.setattr(impl, "lambda_aggregate", lambda axes, weights=None: value)
+    with pytest.raises(O.OracleInconsistency, match="non-finite kernel result"):
+        O.certify([0.5, 0.5], [0.5, 0.5], impl=impl)
 
 
 # --------------------------------------------------------------------------- #
