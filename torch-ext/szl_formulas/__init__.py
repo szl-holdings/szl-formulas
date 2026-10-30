@@ -122,10 +122,14 @@ DOCTRINE = (
     "21 canonical formulas, pure + typed + stdlib-only. Every PROOF_STATUS is "
     "mirrored VERBATIM from SZLHOLDINGS/canonical-formulas-v1. Locked-proven = "
     "exactly 8 (separate machine-enforced set). Λ = weighted geometric mean (D2); "
-    "Λ uniqueness = Conjecture 1 (open); the composer's Λ roll-up is ADVISORY only."
+    "Λ uniqueness = Conjecture 1 (unconditional statement machine-checked false); "
+    "the composer's Λ roll-up is ADVISORY only."
 )
 
-LAMBDA_STATUS = "Conjecture 1 (open) — uniqueness unproven (Uniqueness.lean:120 sorry); advisory only"
+LAMBDA_STATUS = (
+    "Conjecture 1 — unconditional A1-A5 statement is machine-checked false "
+    "(Round13.maxAgg_ne_Lambda); Theorem U is conditional; composer roll-up is ADVISORY only"
+)
 
 PROVENANCE = {
     "mirrors": "SZLHOLDINGS/canonical-formulas-v1 (code/python/formulas.py + composer.py)",
@@ -219,7 +223,7 @@ def list_formulas() -> List[Dict[str, str]]:
 
 
 def lambda_status() -> str:
-    """Λ status — always Conjecture 1 (open). Never 'proven'."""
+    """Λ status. Conjecture 1 stays the citation. The unconditional statement is machine-checked false."""
     return LAMBDA_STATUS
 
 

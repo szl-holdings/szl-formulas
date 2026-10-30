@@ -14,7 +14,8 @@ globals, no hidden state) and carries an explicit PROOF-STATUS per Doctrine v10:
 Λ CANONICALISATION: `lambda_aggregate` is the WEIGHTED GEOMETRIC MEAN (definition
 D2), the form the ouroboros lambda-gate runtime actually evaluates and whose
 axioms A1–A4 are stated in Lutar/Axioms.lean. A1–A4 are PROVEN; Λ *uniqueness*
-remains **Conjecture 1 (open)** (Uniqueness.lean:120 `lutar_is_geomean := sorry`)
+remains **Conjecture 1** (unconditional statement machine-checked false:
+`Round13.maxAgg_ne_Lambda`; Theorem U is conditional)
 — NEVER labelled "proven" anywhere.
 """
 from __future__ import annotations

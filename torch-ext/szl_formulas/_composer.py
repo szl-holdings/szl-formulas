@@ -13,7 +13,7 @@ step before its receipt is appended:
 
 On ANY validator failure the loop HALTS and the ReceiptChain seals at the last
 good step. The Λ composition is **ADVISORY ONLY** — Λ uniqueness is Conjecture 1
-(open); a high Λ is a non-compensatory advisory roll-up, NOT proven trust.
+(unconditional statement machine-checked false); a high Λ is a non-compensatory advisory roll-up, NOT proven trust.
 """
 from __future__ import annotations
 
@@ -168,7 +168,7 @@ def _validate(call: FormulaCall, scalar: float, running_lambda: float) -> Dict[s
     }
 
 
-LAMBDA_LABEL = "ADVISORY — Λ = Conjecture 1 (open); non-compensatory roll-up, NOT proven trust"
+LAMBDA_LABEL = "ADVISORY — Λ = Conjecture 1; unconditional statement machine-checked false; non-compensatory roll-up, NOT proven trust"
 
 
 def run_governed_loop(calls: List[FormulaCall]) -> ReceiptChain:
