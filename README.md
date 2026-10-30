@@ -90,8 +90,9 @@ install dependencies, qualify a runtime or establish a Hub publication.
 | CUDA benches | UNAVAILABLE |
 | Weights | not applicable |
 | Λ | Conjecture 1 (advisory, never a theorem) |
+| NVIDIA Nemotron 3 Nano | NVIDIA result, arXiv:2512.20848. Not an SZL formula. |
 
-Doctrine v11 LOCKED. Owner: Stephen Lutar / SZL Holdings.
+Doctrine v11 LOCKED. Owner: Stephen Lutar / SZL Holdings. The locked formulas stay SZL's. Nemotron stays NVIDIA's published model.
 
 ## License
 
