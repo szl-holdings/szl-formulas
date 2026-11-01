@@ -66,5 +66,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check pytest
+          python -m pip install --disable-pip-version-check pytest 'setuptools==84.1.0' 'wheel==0.48.0'
           python -m pytest tests -q --tb=short
