@@ -32,11 +32,13 @@ def test_installed_wheel_contains_the_formula_atlas(tmp_path):
         [str(python), "-I", "-m", "pip", "install", "--no-index", "--no-deps", str(wheels[0])],
         check=True, capture_output=True, text=True, timeout=120,
     )
+    consumer_code = (
+        "import json; from importlib.resources import files; import szl_formulas as f; "
+        "print(json.dumps({'atlas': f.load_formula_atlas(), "
+        "'metadata': json.loads(files(f).joinpath('metadata.json').read_text(encoding='utf-8'))}))"
+    )
     result = subprocess.run(
-        [str(python), "-I", "-c",
-         "import json; from importlib.resources import files; import szl_formulas as f; "
-         "print(json.dumps({'atlas': f.load_formula_atlas(), "
-         "'metadata': json.loads(files(f).joinpath('metadata.json').read_text(encoding='utf-8'))}))"],
+        [str(python), "-I", "-c", consumer_code],
         cwd=tmp_path, check=False, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stderr
