@@ -9,3 +9,11 @@ classifiers = ["Private :: Do Not Upload"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+[tool.setuptools]
+package-dir = {"" = "torch-ext"}
+
+[tool.setuptools.packages.find]
+where = ["torch-ext"]
+
+[tool.setuptools.package-data]
+szl_formulas = ["formula_atlas.v1.json", "metadata.json"]
