@@ -9,3 +9,8 @@ classifiers = ["Private :: Do Not Upload"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+[tool.setuptools]
+package-dir = {"" = "torch-ext"}
+
+[tool.setuptools.packages.find]
+where = ["torch-ext"]
