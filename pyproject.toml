@@ -16,4 +16,4 @@ package-dir = {"" = "torch-ext"}
 where = ["torch-ext"]
 
 [tool.setuptools.package-data]
-szl_formulas = ["formula_atlas.v1.json", "metadata.json"]
+szl_formulas = ["formula_atlas.v1.json", "proof_reference.v1.json", "metadata.json"]

@@ -259,11 +259,13 @@ from .atlas import (  # noqa: E402
     atlas_summary,
     list_attributed_formulas,
     load_formula_atlas,
+    load_locked_formula_reference,
     quant_domains,
 )
 
 __all__.extend([
     "load_formula_atlas",
+    "load_locked_formula_reference",
     "atlas_summary",
     "quant_domains",
     "list_attributed_formulas",

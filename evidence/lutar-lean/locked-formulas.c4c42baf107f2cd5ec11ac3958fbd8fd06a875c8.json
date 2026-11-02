@@ -1,0 +1,228 @@
+{
+  "carrier_theorem_count": 24,
+  "claims": [
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f1_replay_hash_determinism"
+        },
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f1_replay_trace_stable"
+        }
+      ],
+      "claim_id": "F1"
+    },
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f4_khipu_no_self_loop"
+        },
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f4_khipu_acyclic_irrefl"
+        },
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f4_khipu_reach_strictly_smaller"
+        },
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f4_khipu_reach_decreases"
+        },
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f4_khipu_no_cycle"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f4_khipu_append_preserves_invariant"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f4_khipu_dag_acyclic_preserved"
+        }
+      ],
+      "claim_id": "F4"
+    },
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f7_chaski_enqueueAll_nil"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f7_chaski_drain_eq"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f7_chaski_enqueue_preserves_prefix"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f7_chaski_head_is_oldest"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f7_chaski_fifo_order"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f7_chaski_fifo_positional"
+        }
+      ],
+      "claim_id": "F7"
+    },
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f11_ayni_reciprocity_conservation"
+        }
+      ],
+      "claim_id": "F11"
+    },
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f12_kuramoto_additive"
+        }
+      ],
+      "claim_id": "F12"
+    },
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f18_reed_solomon_parity_count"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "Quot.sound",
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f18_erasure_tolerance"
+        }
+      ],
+      "claim_id": "F18"
+    },
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f19_bekenstein_additive"
+        },
+        {
+          "allowed": true,
+          "axioms": [],
+          "theorem": "Puriq.Formula.Proved.f19_budget_monotone"
+        }
+      ],
+      "claim_id": "F19"
+    },
+    {
+      "carriers": [
+        {
+          "allowed": true,
+          "axioms": [
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f22_emit_appends_length"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "Quot.sound",
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f22_emit_strictly_greater"
+        },
+        {
+          "allowed": true,
+          "axioms": [
+            "Quot.sound",
+            "propext"
+          ],
+          "theorem": "Puriq.Formula.Proved.f22_khipu_emit_monotone"
+        }
+      ],
+      "claim_id": "F22"
+    }
+  ],
+  "evidence_digest": "sha256:d99da0d0215263681991d90a3b382c3247f6f4feb1cfc5ae4b55370c73f68bc9",
+  "input_files_match_head": true,
+  "inputs": {
+    ".github/scripts/build_locked_formula_evidence.py": "sha256:23ce892b467c8832a16eee8fff48954314d04eba8101fbd9456b370547d3ee7c",
+    "Lutar/Puriq/Formulas/ProvedFormulas.lean": "sha256:a9a79ec21074a5e4f8a542a0270050b36ba697654aef8da9cfa1a846ca95413d",
+    "claims/locked-formulas.v1.json": "sha256:1014cd6a73b7396a535aeaacbdd59e228f0a886b58f97ed89921472aa2f21d09",
+    "lean-toolchain": "sha256:d5edba4e4b8faad9c1baeadb265716d20d03be4d1a2647dc5e35b0c0325bea7b",
+    "tools/lean/LockedGuard.lean": "sha256:0b1d7c65409bc5b445c19d7e122a66dee4d0330f640ea42e1a39a5548a279468"
+  },
+  "kernel_query_tool": "Lean.collectAxioms",
+  "lean_toolchain": "leanprover/lean4:v4.34.1",
+  "limitations": [
+    "This manifest records Lean kernel axiom dependencies for the named declarations.",
+    "It does not establish runtime refinement, empirical validity, deployment, or authorization."
+  ],
+  "locked_ids": [
+    "F1",
+    "F4",
+    "F7",
+    "F11",
+    "F12",
+    "F18",
+    "F19",
+    "F22"
+  ],
+  "repository": "szl-holdings/lutar-lean",
+  "schema": "szl.lutar.locked-formula-evidence/v1",
+  "source_commit": "c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8",
+  "source_tree": "d6959371d2654c87dce8b18d5e21d40d0c7a6b57",
+  "trust_base": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ]
+}
