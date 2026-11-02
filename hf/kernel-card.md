@@ -104,6 +104,12 @@ halts on `axis_floor`. `verify_chain(chain, calls)` replays a chain and rejects 
 read the attributed atlas (`formula_atlas.v1.json`) shipped inside the package. The atlas does
 not change locked-proven membership.
 
+`load_locked_formula_reference()` reads the exact-revision Lean axiom-evidence reference
+shipped with the package. It records build/elaboration and `Lean.collectAxioms` at the named
+pin; `lean4checker --fresh`, comparator/external checkers, Lean-to-Python refinement, and
+informal claim semantics remain `NOT_RUN` or `UNVERIFIED`. The reference grants no execution,
+paper-promotion, publication, deployment, or runtime authority.
+
 ## Provenance
 
 Mirrors `SZLHOLDINGS/canonical-formulas-v1` (`code/python/formulas.py` + `composer.py`). Lean 4

@@ -92,6 +92,23 @@ install dependencies, qualify a runtime or establish a Hub publication.
 | Λ | Conjecture 1 (advisory, never a theorem) |
 | NVIDIA Nemotron 3 Nano | NVIDIA result, arXiv:2512.20848. Not an SZL formula. |
 
+## Revision-bound Lean reference
+
+`load_locked_formula_reference()` exposes a deterministic reference to the
+24 named Lean carrier declarations for the locked eight at exact `lutar-lean`
+commit `c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8`. The repository vendors the
+exact workflow evidence and its external receipt, validates their byte digests,
+source tree, toolchain, carrier set, and axiom sets, and ships the derived
+reference with every kernel variant.
+
+The observed level is build/elaboration plus `Lean.collectAxioms` at that pin.
+`lean4checker --fresh` and comparator/external-checker validation are `NOT_RUN`.
+The reference keeps F-number-to-registry mapping, Lean-to-Python refinement, and
+informal claim semantics `UNVERIFIED`; it grants no execution, paper-promotion,
+publication, deployment, or runtime authority. See Lean's official
+[proof-validation ladder](https://lean-lang.org/doc/reference/latest/ValidatingProofs/)
+and [axiom guidance](https://lean-lang.org/doc/reference/latest/Axioms/).
+
 Doctrine v11 LOCKED. Owner: Stephen Lutar / SZL Holdings. The locked formulas stay SZL's. Nemotron stays NVIDIA's published model.
 
 ## License

@@ -14,6 +14,19 @@ def load_formula_atlas() -> dict[str, Any]:
     return value
 
 
+def load_locked_formula_reference() -> dict[str, Any]:
+    """Load the revision-bound external Lean reference shipped with the kernel.
+
+    The reference reports axiom evidence for named Lean declarations.  It does
+    not establish a Lean-to-Python refinement proof or execution authority.
+    """
+    resource = files(__package__).joinpath("proof_reference.v1.json")
+    value = json.loads(resource.read_text(encoding="utf-8"))
+    if value.get("schema") != "szl.formulas.locked-formula-reference/v1":
+        raise ValueError("unsupported locked-formula reference schema")
+    return value
+
+
 def atlas_summary() -> dict[str, Any]:
     return dict(load_formula_atlas()["summary"])
 
