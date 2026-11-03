@@ -244,7 +244,7 @@ def bekenstein_cascade(R: float, E: float) -> float:
             raise ValueError(f"{name} must be a real number (not bool)")
         # Do not coerce to float here: exact rationals and extended-range Real
         # scalars can be finite even when float(value) overflows.
-        if value != value or value == math.inf or value == -math.inf:
+        if not (-math.inf < value < math.inf):
             raise ValueError(f"{name} must be finite")
     if R < 0.0 or E < 0.0:
         raise ValueError("R and E must be >= 0")
@@ -254,7 +254,7 @@ def bekenstein_cascade(R: float, E: float) -> float:
         result = (2.0 * math.pi * R * E) / (hbar * c)
     except OverflowError:
         result = math.inf
-    if result == result and result != math.inf and result != -math.inf:
+    if -math.inf < result < math.inf:
         return result
 
     def exact_real(value):
