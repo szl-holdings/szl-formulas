@@ -109,9 +109,15 @@ def _composer(package):
         ),
     ],
 )
-def test_nonfinite_output_from_accepted_inputs_halts_before_a_receipt(package, name, args):
-    out = package.REGISTRY[name](*args)
-    assert not math.isfinite(out)
+def test_invalid_numeric_evidence_halts_before_a_receipt(package, name, args):
+    if name == "bekenstein_cascade":
+        # The formula now rejects invalid inputs/overflow itself; the composer
+        # must retain exactly the same halt-before-receipt boundary.
+        with pytest.raises(ValueError):
+            package.REGISTRY[name](*args)
+    else:
+        out = package.REGISTRY[name](*args)
+        assert not math.isfinite(out)
     prefix = package.run_governed_loop(PREFIX)
     calls = PREFIX + [{"formula_name": name, "args": args}]
     chain = package.run_governed_loop(calls)
