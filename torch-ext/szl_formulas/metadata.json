@@ -24,7 +24,7 @@
     "F22"
   ],
   "proof_status_source": "mirrored verbatim from SZLHOLDINGS/canonical-formulas-v1",
-  "lambda_status": "Conjecture 1 (open) — uniqueness unproven; composer Λ roll-up is ADVISORY only",
+  "lambda_status": "Conjecture 1 — unconditional statement is machine-checked false (Round13.maxAgg_ne_Lambda); composer roll-up is ADVISORY only",
   "mirrors": "SZLHOLDINGS/canonical-formulas-v1 (code/python/formulas.py + composer.py)",
   "provenance": {
     "lean_repo": "szl-holdings/lutar-lean",
