@@ -21,7 +21,9 @@ remains **Conjecture 1** (unconditional statement machine-checked false:
 from __future__ import annotations
 
 import math
+from fractions import Fraction
 from hashlib import sha256
+from numbers import Rational, Real
 from typing import List, Literal, Sequence, TypedDict
 
 EPS: float = 1e-9
@@ -223,12 +225,55 @@ def pac_bayes_mcallester(empirical_risk: float, kl: float, n: int, delta: float)
 
 # 5. bekenstein_cascade — Bekenstein entropy bound (dimensional helper).
 def bekenstein_cascade(R: float, E: float) -> float:
-    """S_max = (2π R E)/(ℏ c). PROOF-STATUS: PROVEN(TH6 DPI form); dimensional helper."""
+    """S_max = (2π R E)/(ℏ c). PROOF-STATUS: PROVEN(TH6 DPI form); dimensional helper.
+
+    R and E must be finite, non-negative real numbers (bool is not a physical
+    number). Real scalar types and exact rationals remain supported; Decimal
+    is not supported by the existing mixed-float expression. Invalid inputs
+    and non-finite results raise ValueError. With SI inputs the result is the
+    dimensionless entropy/k_B helper, not a physical validity certificate.
+
+    Preserve the historical expression and return type for every finite result.
+    Only if its intermediate arithmetic overflows, retry with exact rational
+    arithmetic using the SAME rounded float coefficient and denominator; return
+    a finite float if representable, otherwise raise ValueError. This does not
+    change the constants, the proof label, or the distinct locked F19 statement.
+    """
+    for name, value in (("R", R), ("E", E)):
+        if isinstance(value, bool) or not isinstance(value, Real):
+            raise ValueError(f"{name} must be a real number (not bool)")
+        # Do not coerce to float here: exact rationals and extended-range Real
+        # scalars can be finite even when float(value) overflows.
+        if value != value or value == math.inf or value == -math.inf:
+            raise ValueError(f"{name} must be finite")
     if R < 0.0 or E < 0.0:
         raise ValueError("R and E must be >= 0")
     hbar = 1.054571817e-34
     c = 299792458.0
-    return (2.0 * math.pi * R * E) / (hbar * c)
+    try:
+        result = (2.0 * math.pi * R * E) / (hbar * c)
+    except OverflowError:
+        result = math.inf
+    if result == result and result != math.inf and result != -math.inf:
+        return result
+
+    def exact_real(value):
+        if isinstance(value, Rational):
+            return Fraction(int(value.numerator), int(value.denominator))
+        if hasattr(value, "as_integer_ratio"):
+            numerator, denominator = value.as_integer_ratio()
+            return Fraction(int(numerator), int(denominator))
+        return Fraction(float(value))
+
+    try:
+        exact = (Fraction(2.0 * math.pi) * exact_real(R) * exact_real(E)
+                 / Fraction(hbar * c))
+        result = float(exact)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError("bekenstein_cascade result must be finite") from exc
+    if not math.isfinite(result):
+        raise ValueError("bekenstein_cascade result must be finite")
+    return result
 
 
 # 6. reidemeister_invariant — knot-calculus governance move.
