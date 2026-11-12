@@ -1,262 +1,326 @@
 {
-  "authority": {
-    "deployment": false,
-    "execution": false,
-    "paper_claim_promotion": false,
-    "publication": false,
-    "python_formula_proof_promotion": false,
-    "runtime": false
-  },
-  "carrier_theorem_count": 24,
-  "claims": [
+ "authority": {
+  "deployment": false,
+  "execution": false,
+  "paper_claim_promotion": false,
+  "publication": false,
+  "python_formula_proof_promotion": false,
+  "runtime": false
+ },
+ "carrier_theorem_count": 30,
+ "claims": [
+  {
+   "carriers": [
     {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f1_replay_hash_determinism"
-        },
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f1_replay_trace_stable"
-        }
-      ],
-      "claim_id": "F1"
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f1_replay_hash_determinism"
     },
     {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f4_khipu_no_self_loop"
-        },
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f4_khipu_acyclic_irrefl"
-        },
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f4_khipu_reach_strictly_smaller"
-        },
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f4_khipu_reach_decreases"
-        },
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f4_khipu_no_cycle"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f4_khipu_append_preserves_invariant"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f4_khipu_dag_acyclic_preserved"
-        }
-      ],
-      "claim_id": "F4"
-    },
-    {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f7_chaski_enqueueAll_nil"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f7_chaski_drain_eq"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f7_chaski_enqueue_preserves_prefix"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f7_chaski_head_is_oldest"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f7_chaski_fifo_order"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f7_chaski_fifo_positional"
-        }
-      ],
-      "claim_id": "F7"
-    },
-    {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f11_ayni_reciprocity_conservation"
-        }
-      ],
-      "claim_id": "F11"
-    },
-    {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f12_kuramoto_additive"
-        }
-      ],
-      "claim_id": "F12"
-    },
-    {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f18_reed_solomon_parity_count"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "Quot.sound",
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f18_erasure_tolerance"
-        }
-      ],
-      "claim_id": "F18"
-    },
-    {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f19_bekenstein_additive"
-        },
-        {
-          "allowed": true,
-          "axioms": [],
-          "theorem": "Puriq.Formula.Proved.f19_budget_monotone"
-        }
-      ],
-      "claim_id": "F19"
-    },
-    {
-      "carriers": [
-        {
-          "allowed": true,
-          "axioms": [
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f22_emit_appends_length"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "Quot.sound",
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f22_emit_strictly_greater"
-        },
-        {
-          "allowed": true,
-          "axioms": [
-            "Quot.sound",
-            "propext"
-          ],
-          "theorem": "Puriq.Formula.Proved.f22_khipu_emit_monotone"
-        }
-      ],
-      "claim_id": "F22"
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f1_replay_trace_stable"
     }
-  ],
-  "limitations": [
-    "This contract references axiom evidence for named Lean declarations at one exact revision.",
-    "It does not prove that any Python function refines a Lean theorem.",
-    "It does not establish informal claim semantics, empirical validity, publication, deployment, runtime behavior, or authorization.",
-    "Lean4checker --fresh and comparator/external-checker validation were not run for this contract."
-  ],
-  "locked_ids": [
-    "F1",
-    "F4",
-    "F7",
-    "F11",
-    "F12",
-    "F18",
-    "F19",
-    "F22"
-  ],
-  "mapping": {
-    "f_number_to_executable_registry": "UNVERIFIED",
-    "lean_theorem_to_python_function": "UNVERIFIED",
-    "proof_term_to_informal_claim_semantics": "UNVERIFIED"
+   ],
+   "claim_id": "F1"
   },
-  "payload_sha256": "sha256:6e5ace786618e96348139f71972dd18a517faaebc1e08054a8485506a00379c8",
-  "schema": "szl.formulas.locked-formula-reference/v1",
-  "source": {
-    "artifact": {
-      "archive_digest": "sha256:ddb28f34c5440a0efee3a926eae2cd5122e9435579ae8c4df8f4b51e1b0561c9",
-      "id": 13118288100,
-      "member_sha256": "sha256:10da7a74357f5d23dee02f19dbc8a5475d10f336b227d7b909eb83ffd29ca33c"
+  {
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f4_khipu_no_self_loop"
     },
-    "commit": "c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8",
-    "evidence_digest": "sha256:d99da0d0215263681991d90a3b382c3247f6f4feb1cfc5ae4b55370c73f68bc9",
-    "evidence_file": "evidence/lutar-lean/locked-formulas.c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8.json",
-    "evidence_file_sha256": "sha256:10da7a74357f5d23dee02f19dbc8a5475d10f336b227d7b909eb83ffd29ca33c",
-    "lean_toolchain": "leanprover/lean4:v4.34.1",
-    "receipt_file": "evidence/lutar-lean/locked-formulas.c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8.receipt.json",
-    "receipt_file_sha256": "sha256:e732886028b4a53714ef2931fad7a9b4809e6a4ae6909f91b0eb2514afec6e78",
-    "repository": "szl-holdings/lutar-lean",
-    "tree": "d6959371d2654c87dce8b18d5e21d40d0c7a6b57",
-    "workflow": {
-      "conclusion": "success",
-      "name": "Lake build (gate + numbers)",
-      "run_id": 41392659869
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f4_khipu_acyclic_irrefl"
+    },
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f4_khipu_reach_strictly_smaller"
+    },
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f4_khipu_reach_decreases"
+    },
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f4_khipu_no_cycle"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f4_khipu_append_preserves_invariant"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f4_khipu_dag_acyclic_preserved"
     }
+   ],
+   "claim_id": "F4"
   },
-  "state": "EXTERNAL_LEAN_AXIOM_EVIDENCE_OBSERVED_AT_PIN",
-  "trust_base": [
-    "propext",
-    "Classical.choice",
-    "Quot.sound"
-  ],
-  "validation_ladder": {
-    "axiom_enumeration": "OBSERVED_AT_PIN_VIA_LEAN_COLLECT_AXIOMS",
-    "build_and_elaboration": "OBSERVED_AT_PIN_IN_REFERENCED_WORKFLOW",
-    "comparator_external_checkers": "NOT_RUN",
-    "guidance": [
-      "https://lean-lang.org/doc/reference/latest/ValidatingProofs/",
-      "https://lean-lang.org/doc/reference/latest/Axioms/"
-    ],
-    "lean4checker_fresh": "NOT_RUN"
+  {
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f7_chaski_enqueueAll_nil"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f7_chaski_drain_eq"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f7_chaski_enqueue_preserves_prefix"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f7_chaski_head_is_oldest"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f7_chaski_fifo_order"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f7_chaski_fifo_positional"
+    }
+   ],
+   "claim_id": "F7"
+  },
+  {
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f11_ayni_reciprocity_conservation"
+    }
+   ],
+   "claim_id": "F11"
+  },
+  {
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f12_kuramoto_additive"
+    }
+   ],
+   "claim_id": "F12"
+  },
+  {
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f18_reed_solomon_parity_count"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "Quot.sound",
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f18_erasure_tolerance"
+    }
+   ],
+   "claim_id": "F18"
+  },
+  {
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f19_bekenstein_additive"
+    },
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f19_budget_monotone"
+    }
+   ],
+   "claim_id": "F19"
+  },
+  {
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f22_emit_appends_length"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "Quot.sound",
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f22_emit_strictly_greater"
+    },
+    {
+     "allowed": true,
+     "axioms": [
+      "Quot.sound",
+      "propext"
+     ],
+     "theorem": "Puriq.Formula.Proved.f22_khipu_emit_monotone"
+    }
+   ],
+   "claim_id": "F22"
+  },
+  {
+   "claim_id": "F23",
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f23_admission_invariant"
+    },
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f23_deny_by_default_safety"
+    }
+   ],
+   "proof": {
+    "checker": "Lean 4 v4.35.0",
+    "result": "EXIT=0, zero sorry",
+    "receipt": "lean/f23-deny-by-default-proven.json"
+   },
+   "source": "lean/F23_deny_by_default.lean"
+  },
+  {
+   "claim_id": "F24",
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.worst_fresh_id"
+    },
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f24_staleness_propagation"
+    }
+   ],
+   "proof": {
+    "checker": "Lean 4 v4.35.0",
+    "result": "EXIT=0, zero sorry",
+    "receipt": "lean/f24-f25-covenant-proven.json"
+   },
+   "source": "lean/F24_F25_covenant.lean"
+  },
+  {
+   "claim_id": "F25",
+   "carriers": [
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f25_admitted_monotone"
+    },
+    {
+     "allowed": true,
+     "axioms": [],
+     "theorem": "Puriq.Formula.Proved.f25_no_unreviewed_entry"
+    }
+   ],
+   "proof": {
+    "checker": "Lean 4 v4.35.0",
+    "result": "EXIT=0, zero sorry",
+    "receipt": "lean/f24-f25-covenant-proven.json"
+   },
+   "source": "lean/F24_F25_covenant.lean"
   }
+ ],
+ "limitations": [
+  "This contract references axiom evidence for named Lean declarations at one exact revision.",
+  "It does not prove that any Python function refines a Lean theorem.",
+  "It does not establish informal claim semantics, empirical validity, publication, deployment, runtime behavior, or authorization.",
+  "Lean4checker --fresh and comparator/external-checker validation were not run for this contract."
+ ],
+ "locked_ids": [
+  "F1",
+  "F4",
+  "F7",
+  "F11",
+  "F12",
+  "F18",
+  "F19",
+  "F22"
+ ],
+ "mapping": {
+  "f_number_to_executable_registry": "UNVERIFIED",
+  "lean_theorem_to_python_function": "UNVERIFIED",
+  "proof_term_to_informal_claim_semantics": "UNVERIFIED"
+ },
+ "payload_sha256": "sha256:6e5ace786618e96348139f71972dd18a517faaebc1e08054a8485506a00379c8",
+ "schema": "szl.formulas.locked-formula-reference/v1",
+ "source": {
+  "artifact": {
+   "archive_digest": "sha256:ddb28f34c5440a0efee3a926eae2cd5122e9435579ae8c4df8f4b51e1b0561c9",
+   "id": 13118288100,
+   "member_sha256": "sha256:10da7a74357f5d23dee02f19dbc8a5475d10f336b227d7b909eb83ffd29ca33c"
+  },
+  "commit": "c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8",
+  "evidence_digest": "sha256:d99da0d0215263681991d90a3b382c3247f6f4feb1cfc5ae4b55370c73f68bc9",
+  "evidence_file": "evidence/lutar-lean/locked-formulas.c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8.json",
+  "evidence_file_sha256": "sha256:10da7a74357f5d23dee02f19dbc8a5475d10f336b227d7b909eb83ffd29ca33c",
+  "lean_toolchain": "leanprover/lean4:v4.34.1",
+  "receipt_file": "evidence/lutar-lean/locked-formulas.c4c42baf107f2cd5ec11ac3958fbd8fd06a875c8.receipt.json",
+  "receipt_file_sha256": "sha256:e732886028b4a53714ef2931fad7a9b4809e6a4ae6909f91b0eb2514afec6e78",
+  "repository": "szl-holdings/lutar-lean",
+  "tree": "d6959371d2654c87dce8b18d5e21d40d0c7a6b57",
+  "workflow": {
+   "conclusion": "success",
+   "name": "Lake build (gate + numbers)",
+   "run_id": 41392659869
+  }
+ },
+ "state": "EXTERNAL_LEAN_AXIOM_EVIDENCE_OBSERVED_AT_PIN",
+ "trust_base": [
+  "propext",
+  "Classical.choice",
+  "Quot.sound"
+ ],
+ "validation_ladder": {
+  "axiom_enumeration": "OBSERVED_AT_PIN_VIA_LEAN_COLLECT_AXIOMS",
+  "build_and_elaboration": "OBSERVED_AT_PIN_IN_REFERENCED_WORKFLOW",
+  "comparator_external_checkers": "NOT_RUN",
+  "guidance": [
+   "https://lean-lang.org/doc/reference/latest/ValidatingProofs/",
+   "https://lean-lang.org/doc/reference/latest/Axioms/"
+  ],
+  "lean4checker_fresh": "NOT_RUN"
+ },
+ "wedge_note": "F23-F25 are the estate's ORIGINAL wedge theorems: the Memory Covenant's semantics as machine-checked math. F26 (the confabulation floor) remains an honestly-labeled CONJECTURE with five receipted measurements."
 }
