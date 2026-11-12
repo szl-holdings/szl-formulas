@@ -1,0 +1,46 @@
+{
+  "schema": "szl.wedge-formula-candidates/v1",
+  "purpose": "the Memory Covenant's semantics as original machine-checkable formulas — the math behind the standards wedge",
+  "authority": {
+    "deployment": false, "execution": false, "publication": false,
+    "promotion_to_locked": false,
+    "note": "candidates only; promotion to the locked reference requires Lean-proven carriers, exactly like F1-F22"
+  },
+  "candidates": [
+    {
+      "claim_id": "F23",
+      "name": "deny-by-default-safety",
+      "statement": "For a memory M with admission set A (the reviewed facts), a decision function d that reads only from A cannot be influenced by any fact outside A: for all unadmitted f, d(M) = d(M \\union {f}). Injection is structurally impossible.",
+      "covenant_clause": "the Memory Covenant's deny-by-default recall",
+      "wedge_use": "the IETF answer: governed memory provably admits no unreviewed influence",
+      "expected_proof": "filtering argument: d factors through the admission projection; unadmitted facts are in the kernel",
+      "status": "CANDIDATE — to be proven in Lean when the Mathlib build completes"
+    },
+    {
+      "claim_id": "F24",
+      "name": "staleness-propagation",
+      "statement": "If source s is stale at time t, then every result r derived from s is stale at t, and the staleness label is preserved under every derivation in the estate's composition rules. A stale record cannot become fresh by derivation.",
+      "covenant_clause": "the truth tiers' UNAVAILABLE inheritance",
+      "wedge_use": "staleness that cannot be laundered — formalized",
+      "status": "CANDIDATE"
+    },
+    {
+      "claim_id": "F25",
+      "name": "learning-monotonicity",
+      "statement": "The admitted-knowledge set is monotone non-decreasing across review cycles, and no unreviewed candidate enters it: admitted(c+1) >= admitted(c), and x in admitted(c+1) implies x was reviewed before cycle c+1.",
+      "covenant_clause": "the Learning Receipt's review gate",
+      "wedge_use": "the 'agent that tried to remember something it wasn't allowed to' demo, as a theorem",
+      "status": "CANDIDATE"
+    },
+    {
+      "claim_id": "F26",
+      "name": "confabulation-floor",
+      "statement": "CONJECTURE: for the tested model family (0.8B-4B), there exists a fabrication rate floor on unanswerable probes that is invariant under fine-tuning across the three tested curricula. Five receipted measurements support it; no proof is claimed.",
+      "covenant_clause": "the estate's own empirical law",
+      "wedge_use": "the honest flagship: a conjecture labeled as a conjecture, with the evidence on the chain",
+      "status": "CONJECTURE — evidence: benchmark/estate-battery-* (5 measurements, all 3/6)"
+    }
+  ],
+  "pipeline": "F23-F25 to be formalized as Lean carriers in the Puriq namespace once the Mathlib build on .145 completes; F26 remains a labeled conjecture until a mechanism is proven",
+  "ts_note": "drafted 2026-11-12; promotion requires the same process as F1-F22: Lean-proven carriers, declared axioms, the locked reference update, and a chain receipt"
+}
