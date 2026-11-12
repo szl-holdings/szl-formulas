@@ -8,20 +8,23 @@
   },
   "candidates": [
     {
-      "claim_id": "F23",
+      "claim_id": "MC1",
       "name": "deny-by-default-safety",
-      "statement": "For a memory M with admission set A (the reviewed facts), a decision function d that reads only from A cannot be influenced by any fact outside A: for all unadmitted f, d(M) = d(M \\union {f}). Injection is structurally impossible.",
+      "statement": "For a memory M with admission set A (the reviewed facts), a decision function d that reads only from A cannot be influenced by any fact outside A: for all unadmitted f, d(M) = d(M with f inserted into the carrier only).",
       "covenant_clause": "the Memory Covenant's deny-by-default recall",
-      "wedge_use": "the IETF answer: governed memory provably admits no unreviewed influence",
+      "wedge_use": "candidate statement of deny-by-default recall",
       "expected_proof": "filtering argument: d factors through the admission projection; unadmitted facts are in the kernel",
-      "status": "CANDIDATE — to be proven in Lean when the Mathlib build completes"
+      "formalization": "lean/MC1_deny_by_default.lean. insertUnadmitted copies admitted, so mc1_admission_invariant and mc1_deny_by_default_safety are rfl. The hypothesis that f was not already admitted is unused. Depends on no axioms.",
+      "id_note": "Formerly mislabeled F23. F23 remains the Λ uniqueness claim (Conjecture 1) in the formula atlas and in lutar-lean. Do not reuse that id here.",
+      "status": "CANDIDATE"
     },
     {
       "claim_id": "F24",
       "name": "staleness-propagation",
       "statement": "If source s is stale at time t, then every result r derived from s is stale at t, and the staleness label is preserved under every derivation in the estate's composition rules. A stale record cannot become fresh by derivation.",
       "covenant_clause": "the truth tiers' UNAVAILABLE inheritance",
-      "wedge_use": "staleness that cannot be laundered — formalized",
+      "wedge_use": "candidate statement that staleness is not removed by the worst-take fold",
+      "formalization": "lean/F24_F25_covenant.lean, f24_staleness_propagation. Induction on the input list and case analysis on Tier.worst. Depends on propext. Not definitional rfl. Not in the locked reference.",
       "status": "CANDIDATE"
     },
     {
@@ -29,7 +32,8 @@
       "name": "learning-monotonicity",
       "statement": "The admitted-knowledge set is monotone non-decreasing across review cycles, and no unreviewed candidate enters it: admitted(c+1) >= admitted(c), and x in admitted(c+1) implies x was reviewed before cycle c+1.",
       "covenant_clause": "the Learning Receipt's review gate",
-      "wedge_use": "the 'agent that tried to remember something it wasn't allowed to' demo, as a theorem",
+      "wedge_use": "candidate statement of the review gate",
+      "formalization": "lean/F24_F25_covenant.lean. f25_admitted_monotone is the left inclusion of append. f25_no_unreviewed_entry only puts a newly present fact in the new reviewed list, because both fields append the same filter; it does not say the fact was reviewed before the cycle. f25_new_admit_was_reviewed is that filter fact. All three are direct from the definition of reviewCycle and depend on propext.",
       "status": "CANDIDATE"
     },
     {
@@ -41,6 +45,6 @@
       "status": "CONJECTURE — evidence: benchmark/estate-battery-* (5 measurements, all 3/6)"
     }
   ],
-  "pipeline": "F23-F25 to be formalized as Lean carriers in the Puriq namespace once the Mathlib build on .145 completes; F26 remains a labeled conjecture until a mechanism is proven",
-  "ts_note": "drafted 2026-11-12; promotion requires the same process as F1-F22: Lean-proven carriers, declared axioms, the locked reference update, and a chain receipt"
+  "pipeline": "MC1, F24, and F25 have candidate Lean sources under lean/ in namespace Puriq.Formula.Candidate. None of them is in the locked formula reference. F23 is not used: that id is Λ uniqueness (Conjecture 1). F26 remains a labeled conjecture until a mechanism is established.",
+  "ts_note": "drafted 2026-11-12; the deny-by-default id was corrected from F23 to MC1 on 2026-11-12. Promotion into the locked reference still requires the F1-F22 process: a non-definitional carrier where the claim needs one, declared axioms, a new lutar-lean evidence pin, the locked-reference builder, and a chain receipt. These files do not do that."
 }
