@@ -34,7 +34,7 @@ def Memory.insertUnadmitted (m : Memory) (f : Fact) : Memory where
     exact List.mem_cons_of_mem _ (m.admits_carried g hg)
 
 /-- The admission invariant: inserting an unadmitted fact preserves admission. -/
-theorem f23_admission_invariant (m : Memory) (f : Fact) (hf : f ∉ m.admitted) :
+theorem f23_admission_invariant (m : Memory) (f : Fact) (_hf : f ∉ m.admitted) :
     (m.insertUnadmitted f).admitted = m.admitted := rfl
 
 /-- THE WEDGE THEOREM: any decision reading through admission is unchanged
