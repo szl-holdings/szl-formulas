@@ -1,7 +1,6 @@
 ---
 license: apache-2.0
 tags:
-  - kernel
   - szl-holdings
   - doi:10.5281/zenodo.19944926
 ---
