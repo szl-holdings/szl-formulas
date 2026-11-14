@@ -1,13 +1,21 @@
 /-
-F24: Staleness propagation — a stale source cannot become fresh by derivation.
-F25: Learning monotonicity — review-gated memory only grows; the unreviewed
-     can never enter.
+F24 and F25 are wedge-formula candidates. They are not locked formulas.
 
-Carriers for claims F24/F25 in contracts/wedge-formula-candidates.v1.json.
-Axioms: none beyond Lean core. Zero sorry.
+F24 is an induction on the worst-take fold: a list that contains `stale`
+derives to `stale` or `unavailable`.
+
+F25 follows from the definition of `reviewCycle`.
+`f25_admitted_monotone` is the left inclusion of `++`.
+`f25_no_unreviewed_entry` only shows that a newly present fact sits in the new
+reviewed list, because that list appends the same filter as the new admitted
+list. `f25_new_admit_was_reviewed` is the filter fact itself: the predicate
+was `c ∈ reviewed` before the cycle. Those two are direct from that definition.
+
+Status: CANDIDATE. Not entries in the locked formula reference.
+No `sorry`. Each theorem in this file depends on `propext` and on no other axiom.
 -/
 
-namespace Puriq.Formula.Proved
+namespace Puriq.Formula.Candidate
 
 /- ========== F24: staleness propagation ========== -/
 
@@ -37,8 +45,16 @@ def StaleOrWorse : Tier → Prop
 theorem worst_fresh_id (t : Tier) : Tier.worst Tier.fresh t = t := by
   cases t <;> rfl
 
-/-- THE WEDGE THEOREM F24: if any input is stale, the derived result is
-stale or worse. Staleness cannot be laundered by derivation. -/
+/-- `worst stale t` is never `fresh`. The second argument still matters:
+`unavailable` wins over `stale`. -/
+theorem worst_stale_is_stale_or_worse (t : Tier) :
+    StaleOrWorse (Tier.worst Tier.stale t) := by
+  cases t with
+  | fresh => exact True.intro
+  | stale => exact True.intro
+  | unavailable => exact True.intro
+
+/-- If any input is stale, the derived result is stale or worse. -/
 theorem f24_staleness_propagation (ts : List Tier) (h : Tier.stale ∈ ts) :
     StaleOrWorse (derive ts) := by
   induction ts with
@@ -53,8 +69,9 @@ theorem f24_staleness_propagation (ts : List Tier) (h : Tier.stale ∈ ts) :
       show StaleOrWorse (Tier.worst Tier.fresh (derive ts))
       rw [worst_fresh_id]
       exact ih h'
-    | stale => trivial
-    | unavailable => trivial
+    | stale =>
+      exact worst_stale_is_stale_or_worse (derive ts)
+    | unavailable => exact True.intro
 
 /- ========== F25: learning monotonicity ========== -/
 
@@ -66,23 +83,27 @@ structure Memory where
   reviewed : List Fact
   gate : ∀ f ∈ admitted, f ∈ reviewed
 
-/-- One review cycle: candidates that pass review are admitted; nothing else enters. -/
+/-- One review cycle: candidates already in `reviewed` are appended to both lists. -/
 def Memory.reviewCycle (m : Memory) (candidates : List Fact) : Memory where
   admitted := m.admitted ++ (candidates.filter (fun c => c ∈ m.reviewed))
   reviewed := m.reviewed ++ (candidates.filter (fun c => c ∈ m.reviewed))
   gate := by
     intro f hf
     cases List.mem_append.mp hf with
-    | inl h => exact m.gate f h
-    | inr h => exact List.mem_append.mpr (Or.inr h)
+    | inl h =>
+      exact List.mem_append.mpr (Or.inl (m.gate f h))
+    | inr h =>
+      exact List.mem_append.mpr (Or.inr h)
 
-/-- THE WEDGE THEOREM F25a: the admitted set only grows across cycles. -/
+/-- Definitional: the previous admitted list is a prefix of the new one. -/
 theorem f25_admitted_monotone (m : Memory) (cands : List Fact) :
     ∀ f ∈ m.admitted, f ∈ (m.reviewCycle cands).admitted := by
   intro f hf
   exact List.mem_append.mpr (Or.inl hf)
 
-/-- THE WEDGE THEOREM F25b: nothing unreviewed ever enters the admitted set. -/
+/-- Definitional, and weaker than the informal wording. A fact that is new in
+the admitted list is in the new reviewed list, because both fields append the
+same filter. The filter predicate is not used. -/
 theorem f25_no_unreviewed_entry (m : Memory) (cands : List Fact) :
     ∀ f ∈ (m.reviewCycle cands).admitted, f ∉ m.admitted → f ∈ (m.reviewCycle cands).reviewed := by
   intro f hf hout
@@ -90,4 +111,14 @@ theorem f25_no_unreviewed_entry (m : Memory) (cands : List Fact) :
   | inl h => exact absurd h hout
   | inr h => exact List.mem_append.mpr (Or.inr h)
 
-end Puriq.Formula.Proved
+/-- Direct from `List.filter`: a fact added by `reviewCycle` already belonged
+to `m.reviewed`. -/
+theorem f25_new_admit_was_reviewed (m : Memory) (cands : List Fact) :
+    ∀ f ∈ (m.reviewCycle cands).admitted, f ∉ m.admitted → f ∈ m.reviewed := by
+  intro f hf hout
+  cases List.mem_append.mp hf with
+  | inl h => exact absurd h hout
+  | inr h =>
+    exact of_decide_eq_true (List.mem_filter.mp h).2
+
+end Puriq.Formula.Candidate
