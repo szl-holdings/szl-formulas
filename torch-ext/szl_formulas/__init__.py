@@ -134,8 +134,8 @@ LAMBDA_STATUS = (
 PROVENANCE = {
     "mirrors": "SZLHOLDINGS/canonical-formulas-v1 (code/python/formulas.py + composer.py)",
     "lean_repo": "szl-holdings/lutar-lean",
-    "doi_lutar_lean": "10.5281/zenodo.20434308",
-    "doi_concept": "10.5281/zenodo.19944926",
+    "doi_lutar_lean": "10.5281/zenodo.24239654",
+    "doi_concept": "10.5281/zenodo.24239896",
     "lambda_status": LAMBDA_STATUS,
     "locked_proven_count": LOCKED_PROVEN_COUNT,
     "trained_weights_present": False,
