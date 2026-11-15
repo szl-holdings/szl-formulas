@@ -1,19 +1,47 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "szl-formulas"
 version = "0.1.0"
 description = "Canonical formula registry and governed-loop composer. Software kernel, not a trained model."
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.9"
-classifiers = ["Private :: Do Not Upload"]
+authors = [{ name = "Stephen P. Lutar / SZL Holdings" }]
+keywords = ["formulas", "governed-loop", "pac-bayes", "kernel-hub", "szl-holdings"]
+# Stdlib only (pure-Python formula registry and composer).
+dependencies = []
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[project.urls]
+Homepage = "https://github.com/szl-holdings/szl-formulas"
+Source = "https://github.com/szl-holdings/szl-formulas"
+Issues = "https://github.com/szl-holdings/szl-formulas/issues"
+Changelog = "https://github.com/szl-holdings/szl-formulas/blob/main/CHANGELOG.md"
+"Kernel Hub" = "https://huggingface.co/kernels/SZLHOLDINGS/szl-formulas"
+
+# The Kernel Hub package lives in torch-ext/ (kernel-builder layout). A local
+# install exposes the same source as `import szl_formulas`; the Hub build is made
+# by scripts/szl_kernel_publish.py, not by this file.
 [tool.setuptools]
-package-dir = {"" = "torch-ext"}
-
-[tool.setuptools.packages.find]
-where = ["torch-ext"]
+package-dir = { "" = "torch-ext" }
+packages = ["szl_formulas"]
+include-package-data = false
 
 [tool.setuptools.package-data]
 szl_formulas = ["formula_atlas.v1.json", "proof_reference.v1.json", "metadata.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# Canonical PyPI release path (szl.pypi-release.v2): the release gate verifies
+# the wheel's top-level import names against this list before any publish.
+[tool.szl.release]
+import_names = ["szl_formulas"]
