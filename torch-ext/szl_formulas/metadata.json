@@ -29,8 +29,8 @@
   "provenance": {
     "lean_repo": "szl-holdings/lutar-lean",
     "locked_count_theorem": "locked_count_eight (no-axiom, PROVEN_FORMULAS.md)",
-    "doi_lutar_lean": "10.5281/zenodo.20434308",
-    "doi_concept": "10.5281/zenodo.19944926"
+    "doi_lutar_lean": "10.5281/zenodo.24239654",
+    "doi_concept": "10.5281/zenodo.24239896"
   },
   "test_evidence": {
     "state": "REVISION_SCOPED_CI_REQUIRED",
