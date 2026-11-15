@@ -9,7 +9,7 @@ tags:
   - proof-status
   - lean4
   - lambda-aggregate
-  - doi:10.5281/zenodo.19944926
+  - doi:10.5281/zenodo.24239896
 ---
 
 <!-- Native artwork: szl-brand@4309f6fce89179331b0b3ed8c99494e76c5be256; Orbit v2 icon SHA-256 6e2b7d72a3af3d9602b79de41df0194ede6496a9661f057108ec224c0efc92e6. -->
@@ -114,8 +114,8 @@ paper-promotion, publication, deployment, or runtime authority.
 
 Mirrors `SZLHOLDINGS/canonical-formulas-v1` (`code/python/formulas.py` + `composer.py`). Lean 4
 formalization: [szl-holdings/lutar-lean](https://github.com/szl-holdings/lutar-lean), DOI
-[10.5281/zenodo.20434308](https://doi.org/10.5281/zenodo.20434308); concept DOI
-[10.5281/zenodo.19944926](https://doi.org/10.5281/zenodo.19944926).
+[10.5281/zenodo.24239654](https://doi.org/10.5281/zenodo.24239654); concept DOI
+[10.5281/zenodo.24239896](https://doi.org/10.5281/zenodo.24239896).
 
 ## What this is not
 
