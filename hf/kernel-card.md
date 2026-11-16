@@ -115,7 +115,7 @@ paper-promotion, publication, deployment, or runtime authority.
 Mirrors `SZLHOLDINGS/canonical-formulas-v1` (`code/python/formulas.py` + `composer.py`). Lean 4
 formalization: [szl-holdings/lutar-lean](https://github.com/szl-holdings/lutar-lean), DOI
 [10.5281/zenodo.24239654](https://doi.org/10.5281/zenodo.24239654); concept DOI
-[10.5281/zenodo.24239896](https://doi.org/10.5281/zenodo.24239896).
+[10.5281/zenodo.24239653](https://doi.org/10.5281/zenodo.24239653).
 
 ## What this is not
 
