@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "szl-formulas"
-version = \"0.1.2"
+version = "0.1.2"
 description = "Canonical formula registry and governed-loop composer. Software kernel, not a trained model."
 readme = "README.md"
 license = "Apache-2.0"
