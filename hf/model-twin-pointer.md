@@ -2,7 +2,7 @@
 license: apache-2.0
 tags:
   - szl-holdings
-  - doi:10.5281/zenodo.24239896
+  - doi:10.5281/zenodo.24239653
 ---
 
 <!-- Native artwork: szl-brand@4309f6fce89179331b0b3ed8c99494e76c5be256; Orbit v2 icon SHA-256 6e2b7d72a3af3d9602b79de41df0194ede6496a9661f057108ec224c0efc92e6. -->
