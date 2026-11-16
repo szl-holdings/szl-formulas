@@ -1,6 +1,6 @@
 {
   "name": "szl_formulas",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "universal": true,
   "backends": [
     "cpu"
