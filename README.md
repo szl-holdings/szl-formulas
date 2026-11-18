@@ -82,6 +82,30 @@ import szl_formulas as local_kernel
 This selects local Python source rather than calling the Hub loader. Importing local
 source also executes Python. This documentation check does not run that import,
 install dependencies, qualify a runtime or establish a Hub publication.
+## EML single-operator research (source-only, no new locked formula)
+
+[Odrzywołek (2026), arXiv:2603.21852v2](https://arxiv.org/html/2603.21852v2)
+shows that the binary operator `EML(x,y) = exp(x) - ln(y)` and the
+constant `1` generate the 36-primitives scientific-calculator basis
+under the paper's complex/extended-real assumptions. The
+[author's research toolkit](https://github.com/VA00/SymbolicRegressionPackage)
+is separately attributed; no upstream code has been copied.
+
+The independent SZL stdlib-only module
+[`szl_formulas.eml_research`](torch-ext/szl_formulas/eml_research.py)
+is a **bounded real-domain numerical witness** of three published shallow
+identities (exp, ln and e). It records EML tree RPN, costs, SHA3-256
+structural checksums, sample denominators and explicit refusal codes for
+invalid real logs, overflow and malformed inputs. The numerical matches
+are not Lean proofs, source signatures, general symbolic regression,
+trained models, production endpoints or GPU validation. It is **not** a
+22nd canonical formula or a ninth locked-proven F-ID.
+
+Run `PYTHONPATH=torch-ext python -m szl_formulas.eml_research` on
+reviewed local source. See [the study, equations, domain constraints,
+attribution, tests and SZL ecosystem integration contract](docs/EML_SINGLE_OPERATOR_RESEARCH_2603_21852.md).
+No Hugging Face, PyPI or Cloudflare release follows from the source alone.
+
 ## Honesty
 
 | Claim | Label |
