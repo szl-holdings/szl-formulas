@@ -1,0 +1,375 @@
+name: Lean wedge candidates
+
+# Compiles every lean/*.lean file separately with the official Lean release named
+# in lean/lean-toolchain (archive pinned by sha256 and verified before extraction)
+# and runs `#print axioms` (with pp.fullNames) for every theorem each file
+# declares. Fails on a compile error, on sorry/sorryAx, on any axiom outside
+# ALLOWED_AXIOMS, on an axiom the file declares itself, on a namespace or section
+# left open at the end of a file, or when a carrier theorem named in the
+# formalization text of contracts/wedge-formula-candidates.v1.json is missing.
+# Candidate status only: a pass promotes nothing to the locked formula reference.
+#
+# This is a correctness gate for honest sources, not a sandbox: a source that
+# runs its own meta code at elaboration time (macros, elaborators, delaborators,
+# run_cmd) can still forge the output this job reads.
+#
+# The paths filter keeps the ~580 MB toolchain download off unrelated changes.
+# A path-filtered workflow does not report at all on a PR that touches none of
+# these paths, so it cannot be made a required check as it stands.
+
+on:
+  pull_request:
+    paths:
+      - 'lean/**'
+      - 'contracts/wedge-formula-candidates.v1.json'
+      - '.github/workflows/lean-wedge-candidates.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'lean/**'
+      - 'contracts/wedge-formula-candidates.v1.json'
+      - '.github/workflows/lean-wedge-candidates.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lean-wedge-candidates-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: compile wedge candidates and check axioms
+    runs-on: ubuntu-24.04
+    env:
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      # A toolchain bump must change lean/lean-toolchain and every LEAN_* value
+      # below in the same change; the gate refuses to run on a mismatch.
+      LEAN_TOOLCHAIN: leanprover/lean4:v4.34.1
+      LEAN_VERSION: 4.34.1
+      LEAN_COMMIT: 5045d0056413266e57c625dcd7c365b10e377c52
+      LEAN_ARCHIVE: lean-4.34.1-linux.tar.zst
+      LEAN_ARCHIVE_SHA256: 47bf4bbd78f70c2e9670598ab7124d92b6efb7330ff33e5fbb4030f6fd72e4e4
+      ALLOWED_AXIOMS: propext Classical.choice Quot.sound
+      CARRIER_NAMESPACE: Puriq.Formula.Candidate
+    timeout-minutes: 20
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a
+        with:
+          egress-policy: audit
+
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.SOURCE_REVISION }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Prove exact source checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
+          test "$(git rev-parse --verify HEAD^{commit})" = "$SOURCE_REVISION"
+
+      - name: Refuse an unpinned toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f lean/lean-toolchain ]; then
+            echo "::error::lean/lean-toolchain is missing"
+            exit 1
+          fi
+          declared="$(cat lean/lean-toolchain)"
+          if [ "$declared" != "$LEAN_TOOLCHAIN" ]; then
+            echo "::error::lean/lean-toolchain does not name ${LEAN_TOOLCHAIN}. Update LEAN_TOOLCHAIN, LEAN_VERSION, LEAN_COMMIT, LEAN_ARCHIVE and LEAN_ARCHIVE_SHA256 in this workflow in the same change."
+            exit 1
+          fi
+          test "$LEAN_TOOLCHAIN" = "leanprover/lean4:v${LEAN_VERSION}"
+          test "$LEAN_ARCHIVE" = "lean-${LEAN_VERSION}-linux.tar.zst"
+          echo "toolchain: ${LEAN_TOOLCHAIN}"
+
+      - name: Install Lean (sha256 verified before extraction)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v zstd >/dev/null 2>&1; then
+            echo "::error::zstd is unavailable; the gate fails closed."
+            exit 1
+          fi
+          download="$RUNNER_TEMP/lean-download"
+          toolchain="$RUNNER_TEMP/lean-toolchain"
+          mkdir -p "$download" "$toolchain"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --tlsv1.2 --retry 3 --output "$download/$LEAN_ARCHIVE" \
+            "https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/${LEAN_ARCHIVE}"
+          echo "${LEAN_ARCHIVE_SHA256}  $download/$LEAN_ARCHIVE" | sha256sum --check --strict -
+          tar --zstd -xf "$download/$LEAN_ARCHIVE" -C "$toolchain"
+          bin="$toolchain/lean-${LEAN_VERSION}-linux/bin"
+          version="$("$bin/lean" --version)"
+          case "$version" in
+            "Lean (version ${LEAN_VERSION}, "*"commit ${LEAN_COMMIT}, "*) ;;
+            *) echo "::error::unexpected Lean binary version"; exit 1 ;;
+          esac
+          echo "$version"
+          echo "$bin" >> "$GITHUB_PATH"
+
+      - name: Compile every lean/*.lean file separately
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(lean/*.lean)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::no lean/*.lean files found"
+            exit 1
+          fi
+          token="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          failed=0
+          for file in "${files[@]}"; do
+            if ! [[ "$file" =~ ^lean/[A-Za-z0-9._-]+\.lean$ ]]; then
+              echo "::error::unexpected Lean file name under lean/"
+              failed=1
+              continue
+            fi
+            log="$RUNNER_TEMP/compile-$(basename "$file").log"
+            code=0
+            lean "$file" >"$log" 2>&1 || code=$?
+            echo "::stop-commands::$token"
+            cat "$log"
+            # The resume marker must start its own line, or later commands stay stopped.
+            if [ -s "$log" ] && [ "$(tail -c 1 "$log" | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
+              echo
+            fi
+            echo "::$token::"
+            echo "$file: lean exit $code"
+            if [ "$code" -ne 0 ]; then
+              echo "::error::$file failed to compile (lean exit $code)"
+              failed=1
+            fi
+            # Any quoting of the word: 'sorry', `sorry`, "sorry" or a typographic quote.
+            if LC_ALL=C grep -a -E -q 'declaration uses [^[:alnum:][:space:]]*sorry' "$log"; then
+              echo "::error::$file uses sorry"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      - name: Print axioms of every theorem and check the allow-list
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+          import secrets
+          import subprocess
+          import sys
+
+          sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+          ALLOWED = set(os.environ["ALLOWED_AXIOMS"].split())
+          NAMESPACE = os.environ["CARRIER_NAMESPACE"]
+          # The allow-list is also written into the Lean code below, so it must be plain names.
+          PLAIN_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*")
+          if not ALLOWED or not all(PLAIN_NAME.fullmatch(a) for a in ALLOWED):
+              raise SystemExit("::error::ALLOWED_AXIOMS must be plain Lean names")
+          FILE_NAME = re.compile(r"lean/[A-Za-z0-9._-]+\.lean")
+          SORRY = re.compile(r"declaration uses [^\w\s]*sorry|sorryAx")
+          # A plain scan for `theorem` declarations, used only to cross-check that the
+          # enumeration below did not skip one. It does not skip comments, so a comment
+          # line that starts with `theorem ` fails the gate (closed, with a clear message).
+          DECLARED = re.compile(
+              r"^[ \t]*(?:@\[[^\]\n]*\][ \t]*)?"
+              r"(?:(?:private|protected|noncomputable|nonrec)[ \t]+)*"
+              r"theorem[ \t]+([^\s(:{\[]+)",
+              re.M,
+          )
+          # Pass 1 runs on a temporary copy with `import Lean` prepended, because the meta
+          # API needs it. It walks the stage-2 constants (those the file itself adds) and
+          # reports, as plain Name.toString text that no pretty printer shortens:
+          #   WEDGE_OPEN_SCOPES  scope levels still open at the end of the file (each
+          #                      component of an unclosed namespace, and each section);
+          #   WEDGE_FILE_AXIOM   every axiom the file declares, internal names included;
+          #   WEDGE_BAD_AXIOM    every axiom outside the allow-list that Lean.collectAxioms
+          #                      finds for a non-internal constant of any kind (defs too);
+          #   WEDGE_THEOREM      every theorem, private ones included, for pass 2.
+          ENUMERATE = (
+              "\nrun_cmd do\n"
+              "  let scopes <- Lean.Elab.Command.getScopes\n"
+              "  Lean.logInfo m!\"WEDGE_OPEN_SCOPES {scopes.length - 1}\"\n"
+              "\nopen Lean Elab Command in\n"
+              "run_cmd do\n"
+              "  let env <- getEnv\n"
+              "  let allowed : List Name := ["
+              + ", ".join(f"`{a}" for a in sorted(ALLOWED))
+              + "]\n"
+              "  let consts := env.constants.foldStage2\n"
+              "    (fun (acc : Array (Prod Name ConstantInfo)) n ci => acc.push (n, ci)) #[]\n"
+              "  let mut names : Array String := #[]\n"
+              "  for (n, ci) in consts do\n"
+              "    match ci with\n"
+              "    | .axiomInfo _ => logInfo m!\"WEDGE_FILE_AXIOM {n.toString}\"\n"
+              "    | _ => pure ()\n"
+              "    let u := (privateToUserName? n).getD n\n"
+              "    unless u.isInternal do\n"
+              "      if ci.isTheorem then\n"
+              "        names := names.push u.toString\n"
+              "      for a in (<- collectAxioms n) do\n"
+              "        unless allowed.contains a do\n"
+              "          logInfo m!\"WEDGE_BAD_AXIOM {a.toString} in {n.toString}\"\n"
+              "  for s in names.qsort (fun a b => a < b) do\n"
+              "    logInfo m!\"WEDGE_THEOREM {s}\"\n"
+              "  logInfo m!\"WEDGE_THEOREM_COUNT {names.size}\"\n"
+          )
+          TOKEN = secrets.token_hex(16)
+          work = pathlib.Path(os.environ["RUNNER_TEMP"]) / "wedge-axioms"
+          work.mkdir(parents=True, exist_ok=True)
+
+
+          def lean(path):
+              result = subprocess.run(
+                  ["lean", str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                  encoding="utf-8", errors="replace", check=False, timeout=900,
+              )
+              print(f"::stop-commands::{TOKEN}")
+              print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+              print(f"::{TOKEN}::")
+              return result.returncode, result.stdout
+
+
+          failures = []
+          notes = []
+          checked = {}
+          files = sorted(pathlib.Path("lean").glob("*.lean"))
+          if not files:
+              failures.append("no lean/*.lean files found")
+          for path in files:
+              rel = path.as_posix()
+              if not FILE_NAME.fullmatch(rel):
+                  failures.append("unexpected Lean file name under lean/")
+                  continue
+              source = path.read_text(encoding="utf-8")
+              listing = work / f"enumerate-{path.name}"
+              listing.write_text("import Lean\n" + source + "\n" + ENUMERATE, encoding="utf-8")
+              code, out = lean(listing)
+              names = re.findall(r"^WEDGE_THEOREM (\S+)$", out, re.M)
+              counts = re.findall(r"^WEDGE_THEOREM_COUNT (\d+)$", out, re.M)
+              scopes = re.findall(r"^WEDGE_OPEN_SCOPES (\d+)$", out, re.M)
+              if (
+                  code != 0
+                  or len(counts) != 1
+                  or int(counts[0]) != len(names)
+                  or len(set(names)) != len(names)
+                  or len(scopes) != 1
+              ):
+                  failures.append(f"{rel}: theorem enumeration failed (lean exit {code})")
+                  continue
+              # `#print axioms` prints names relative to the namespace still open at the
+              # end of the file; an open scope also lets a shadow axiom read as an allowed one.
+              if scopes[0] != "0":
+                  failures.append(
+                      f"{rel}: ends with {scopes[0]} scope level(s) still open"
+                      " (an unclosed namespace or section)"
+                  )
+              for axiom in re.findall(r"^WEDGE_FILE_AXIOM (.+)$", out, re.M):
+                  failures.append(f"{rel}: the file declares axiom {axiom}")
+              for bad in re.findall(r"^WEDGE_BAD_AXIOM (.+)$", out, re.M):
+                  failures.append(f"{rel}: collectAxioms: axiom {bad} is outside the allow-list")
+              for declared in DECLARED.findall(source):
+                  if not any(n == declared or n.endswith("." + declared) for n in names):
+                      failures.append(f"{rel}: theorem {declared} is missing from the enumeration")
+              # Pass 2 appends one `#print axioms` per theorem to an unmodified copy, so the
+              # axioms are those of the file exactly as it compiles on its own. pp.fullNames
+              # stops Lean printing an axiom relative to a namespace left open, which would
+              # let `Puriq.Formula.Candidate.Quot.sound` read as `Quot.sound`.
+              probe = work / f"axioms-{path.name}"
+              probe.write_text(
+                  source
+                  + "\n"
+                  + "".join(
+                      f"set_option pp.fullNames true in\n#print axioms {name}\n" for name in names
+                  ),
+                  encoding="utf-8",
+              )
+              code, out = lean(probe)
+              if code != 0:
+                  failures.append(f"{rel}: #print axioms run failed (lean exit {code})")
+                  continue
+              if SORRY.search(out):
+                  failures.append(f"{rel}: sorry present")
+              for name in names:
+                  # A private theorem is reported under its `_private.<module>.0.` name.
+                  report = re.compile(
+                      r"'(?:_private\.(?:[^'\s]*?\.)?0\.)?"
+                      + re.escape(f"{name}' ")
+                      + r"(?:does not depend on any axioms|depends on axioms: \[([^\]]*)\])"
+                  )
+                  found = report.findall(out)
+                  if len(found) != 1:
+                      failures.append(
+                          f"{rel}: expected one axiom report for {name}, found {len(found)}"
+                      )
+                      continue
+                  axioms = sorted(a.strip() for a in found[0].split(",") if a.strip())
+                  outside = sorted(set(axioms) - ALLOWED)
+                  if outside:
+                      failures.append(
+                          f"{rel}: {name} depends on axioms outside the allow-list: {outside}"
+                      )
+                  checked[(rel, name)] = axioms
+                  notes.append(f"{rel}: {name}: {axioms if axioms else 'no axioms'}")
+
+          # Carriers are the names in each candidate's formalization text that start with
+          # the claim id in lower case (mc1_..., f24_...); each must be a checked theorem
+          # in NAMESPACE inside a lean/*.lean file that the same text names.
+          SOURCE_REF = re.compile(r"lean/[A-Za-z0-9._-]+\.lean")
+          contract = json.loads(
+              pathlib.Path("contracts/wedge-formula-candidates.v1.json").read_text(encoding="utf-8")
+          )
+          carriers = 0
+          for candidate in contract["candidates"]:
+              text = candidate.get("formalization")
+              if text is None:
+                  continue
+              claim = candidate["claim_id"]
+              sources = sorted(set(SOURCE_REF.findall(text)))
+              named = sorted(
+                  set(
+                      re.findall(
+                          r"(?<![A-Za-z0-9_./])" + re.escape(claim.lower()) + r"_[A-Za-z0-9_]+",
+                          text,
+                      )
+                  )
+              )
+              if not sources:
+                  failures.append(f"{claim}: formalization names no lean/*.lean source")
+              if not named:
+                  failures.append(f"{claim}: formalization names no carrier theorem")
+              for name in named:
+                  carriers += 1
+                  full = f"{NAMESPACE}.{name}"
+                  hits = [s for s in sources if (s, full) in checked]
+                  if hits:
+                      notes.append(f"{claim}: carrier {full} found in {hits[0]}")
+                  else:
+                      failures.append(
+                          f"{claim}: carrier {full} was not found in {', '.join(sources) or 'any source'}"
+                      )
+          if carriers == 0:
+              failures.append("contracts/wedge-formula-candidates.v1.json names no carriers")
+
+          print(f"::stop-commands::{TOKEN}")
+          for note in notes:
+              print(note)
+          for failure in failures:
+              print(f"FAIL {failure}")
+          print(f"::{TOKEN}::")
+          print(f"theorems checked: {len(checked)}; contract carriers: {carriers}")
+          if failures:
+              print(f"::error::wedge axiom gate failed with {len(failures)} problem(s)")
+              raise SystemExit(1)
+          PY
